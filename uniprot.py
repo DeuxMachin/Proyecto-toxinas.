@@ -236,6 +236,11 @@ class UniProtPipeline:
             for k in list(elem.attrib):
                 if elem.attrib[k] is None:
                     elem.attrib[k] = "algo none" 
+                    
+        # Eliminar proteínas que contienen el marcador 'algo none' en texto o atributos
+        for protein in list(root.findall("protein")):
+            if any("algo none" in (child.text or "") or any("algo none" in (v or "") for v in child.attrib.values()) for child in protein.iter()):
+                root.remove(protein)
 
         xml_str = ET.tostring(root, encoding="utf-8")
         parsed = minidom.parseString(xml_str)
