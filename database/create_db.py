@@ -56,6 +56,25 @@ def create_database():
     );
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Nav1_7_InhibitorPeptides (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        accession_number TEXT,
+        peptide_code TEXT NOT NULL,
+        sequence TEXT NOT NULL,
+        pharmacophore_match TEXT,
+        pharmacophore_residue_count INTEGER,
+        ic50_value REAL,
+        ic50_unit TEXT,
+        pdb_blob BLOB,
+        pdb_download_link TEXT,
+        graph_full_structure BLOB,
+        graph_beta_hairpin BLOB,
+        graph_hydrophobic_patch BLOB,
+        graph_charge_ring BLOB
+    );
+    """)
+    
     conn.commit()
     conn.close()
     print(f"[✓] Base de datos creada en: {DB_PATH}")
