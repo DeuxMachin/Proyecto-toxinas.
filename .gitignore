@@ -1,21 +1,24 @@
 database/toxins.db
 
-# Database files
+
 database/*.db
 
-# Raw PDB files downloaded from sources
+
 data/pdb_raw/
 
-# Python cache files
+data/processed/
+data/processed/*.csv
+data/processed/*.json
+pdbs/*.pdb
+
 __pycache__/
 *.pyc
 
-# Environment files
+
 .env
 
-# Temporary files (if any)
+
 *.tmp
 
-# Data files (XML, JSON) - Add these lines
 *.xml
 *.json

@@ -1,6 +1,6 @@
 import sqlite3
 
-DB_PATH = "database/toxins.db"  # Ajusta la ruta si tu base está en otro lugar
+DB_PATH = "database/toxins.db" 
 
 # Datos extraídos de la imagen del paper
 peptides_data = [
