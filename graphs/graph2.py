@@ -95,7 +95,7 @@ class Nav17ToxinGraphAnalyzer:
         return structure
     
     def load_pdb_from_blob(self, peptide_code):
-        """Carga estructura PDB desde blob en base de datos"""
+        """Carga estructura PDB desde blob en base de datos (útil para toxinas Nav1.7)"""
         conn = self._connect_db()
         cursor = conn.cursor()
         
@@ -120,8 +120,8 @@ class Nav17ToxinGraphAnalyzer:
         
         return structure
     
-    def calculate_secondary_structure(self, structure): #ESTA WEA O FUNCIONA
-        """Calcula estructura secundaria mediante DSSP """
+    def calculate_secondary_structure(self, structure):
+        """Calcula estructura secundaria mediante DSSP (relevante para identificar dominios en toxinas)"""
         model = structure[0]
         dssp = DSSP(model, structure.id, dssp='mkdssp')
         
@@ -146,7 +146,7 @@ class Nav17ToxinGraphAnalyzer:
             ss = ss_map.get(dssp[k][1], 'loop')
             residue_ss[res_id] = ss
             
-            # Extracción de SASA  importante para identificar sitios de interacción
+            # Extracción de SASA (área accesible al solvente) importante para identificar sitios de interacción
             sasa_values[res_id] = dssp[k][2]
             
         return residue_ss, sasa_values
@@ -261,11 +261,11 @@ class Nav17ToxinGraphAnalyzer:
             print(f"Advertencia: No se pudo calcular estructura secundaria: {e}")
             ss_info, sasa_values = {}, {}
         
-        # Búsqueda de puentes disulfuro 
+        # Búsqueda de puentes disulfuro (críticos para estructura de toxinas)
         disulfide_bridges = self.find_disulfide_bridges(structure)
         print(f"Encontrados {len(disulfide_bridges)} puentes disulfuro")
         
-        # Cálculo de momento dipolar
+        # Cálculo de momento dipolar (crítico para interacciones con VSD)
         dipole = self.calculate_dipole_moment(structure)
         
         # Obtención de todos los átomos y átomos CA
@@ -276,13 +276,13 @@ class Nav17ToxinGraphAnalyzer:
         for atom in ca_atoms:
             res = atom.get_parent()
             res_id = res.get_id()[1]  # Número de residuo
-            resname = res.get_resname()  # Nombre de residuo 
+            resname = res.get_resname()  # Nombre de residuo de 3 letras
             
-            
+            # Conversión a código de una letra si es posible
             try:
                 aa = seq1(resname)
             except:
-                aa = 'X' 
+                aa = 'X'  # 'X' para residuos no estándar
             
             # Cálculo de propiedades fisicoquímicas
             hydrophobicity = HYDROPHOBICITY.get(aa, 0)
@@ -320,14 +320,14 @@ class Nav17ToxinGraphAnalyzer:
                               type='distance',
                               interaction_strength=1.0/distance)
         
-        # Adición de enlaces peptídicos 
+        # Adición de enlaces peptídicos (conexiones secuenciales)
         residue_ids = sorted(G.nodes())
         for i in range(len(residue_ids)-1):
             if residue_ids[i+1] - residue_ids[i] == 1:  # residuos adyacentes
                 G.add_edge(residue_ids[i], residue_ids[i+1], 
                           weight=1.0,
                           type='peptide',
-                          interaction_strength=5.0)  
+                          interaction_strength=5.0)  # más fuerte que basado en distancia
         
         # Adición de puentes disulfuro
         for res1, res2 in disulfide_bridges:
@@ -369,7 +369,7 @@ class Nav17ToxinGraphAnalyzer:
             'dipole_magnitude': round(G.graph.get('dipole_magnitude', 0), 2),
         }
         
-        # Cálculo de métricas de centralidad 
+        # Cálculo de métricas de centralidad (importantes para identificar residuos clave de interacción)
         degree_centrality = nx.degree_centrality(G)
         betweenness_centrality = nx.betweenness_centrality(G)
         closeness_centrality = nx.closeness_centrality(G)
@@ -451,7 +451,7 @@ class Nav17ToxinGraphAnalyzer:
                         if attr.get('charge', 0) > 0 and attr.get('is_surface', False)]
         
         if len(positive_nodes) >= 3:
-            # Comprobación si forman un cluster 
+            # Comprobación si forman un cluster (cercanos entre sí)
             pos = nx.get_node_attributes(G, 'pos')
             if pos:
                 coordinates = np.array([pos[n] for n in positive_nodes])
@@ -493,141 +493,209 @@ class Nav17ToxinGraphAnalyzer:
         return motifs
     
     def visualize_enhanced_graph(self, G, title="Grafo de Toxina Nav1.7", plot_3d=False, show_labels=True, highlight_pharmacophore=True):
-        """Visualización avanzada del grafo de toxina con características relevantes para Nav1.7"""
-
-        fig, ax = plt.subplots(figsize=(14, 12))
-        
-        # Obtención de posiciones 
-        pos = nx.get_node_attributes(G, 'pos')
-        pos_2d = {}
-        for node, coord in pos.items():
-            pos_2d[node] = (coord[0], coord[1])  
-        
-        # Obtención de atributos de nodos
-        residue_types = nx.get_node_attributes(G, 'residue_type')
-        is_disulfide = nx.get_node_attributes(G, 'is_in_disulfide')
-        is_surface = nx.get_node_attributes(G, 'is_surface')
-        is_pharmacophore = nx.get_node_attributes(G, 'is_pharmacophore')
-        centrality = nx.get_node_attributes(G, 'betweenness_centrality')
-        
-        # Determinación de colores y tamaños de nodos
-        node_colors = []
-        node_sizes = []
-        for node in G.nodes():
-            # Color base según tipo de residuo
-            res_type = residue_types.get(node, 'other')
-            color = RESIDUE_COLORS.get(res_type, RESIDUE_COLORS['other'])
-            
-            # Modificación de color para residuos especiales
-            if highlight_pharmacophore and is_pharmacophore.get(node, False):
-                color = 'yellow'
-            
-            node_colors.append(color)
-            
-            # Tamaño basado en centralidad y exposición superficial
-            base_size = centrality.get(node, 0) * 2000 + 100
-            if is_surface.get(node, False):
-                base_size *= 1.3
-            
-            node_sizes.append(base_size)
-        
-        # Creación de listas de aristas para diferentes tipos
-        peptide_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('type') == 'peptide']
-        disulfide_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('type') == 'disulfide']
-        distance_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('type') == 'distance']
-        
-        # Dibujo de nodos
-        nodes = nx.draw_networkx_nodes(G, pos_2d, 
-                                     node_size=node_sizes, 
-                                     node_color=node_colors, 
-                                     alpha=0.8, 
-                                     edgecolors='black',
-                                     ax=ax)
-        
-        # Dibujo de diferentes tipos de aristas
-        nx.draw_networkx_edges(G, pos_2d, edgelist=peptide_edges, 
-                              width=2, edge_color='black', alpha=0.7, ax=ax)
-        nx.draw_networkx_edges(G, pos_2d, edgelist=disulfide_edges, 
-                              width=2.5, edge_color='gold', alpha=1.0, ax=ax)
-        nx.draw_networkx_edges(G, pos_2d, edgelist=distance_edges, 
-                              width=0.5, edge_color='gray', alpha=0.3, ax=ax)
-        
-        
-        if show_labels:
-            # Creación de etiquetas personalizadas
-            labels = {}
-            for node in G.nodes():
+            """Visualización avanzada del grafo de toxina con características relevantes para Nav1.7"""
+            if plot_3d:
+                # Visualización 3D con características mejoradas
+                fig = plt.figure(figsize=(14, 12))
+                ax = fig.add_subplot(111, projection='3d')
                 
-                pharm_tag = " " if is_pharmacophore.get(node, False) else ""
-                surf_tag = " " if is_surface.get(node, False) else ""
-                ss = G.nodes[node].get('secondary_structure', '')
-                ss_tag = ""
-                if ss == 'helix':
-                    ss_tag = " α"
-                elif ss == 'beta':
-                    ss_tag = " β"
+                # Obtención de posiciones 3D
+                pos = nx.get_node_attributes(G, 'pos')
+                
+                # Extracción de coordenadas x, y, z
+                xs = [pos[node][0] for node in G.nodes()]
+                ys = [pos[node][1] for node in G.nodes()]
+                zs = [pos[node][2] for node in G.nodes()]
+                
+                # Obtención de atributos de nodos
+                residue_types = nx.get_node_attributes(G, 'residue_type')
+                is_disulfide = nx.get_node_attributes(G, 'is_in_disulfide')
+                is_surface = nx.get_node_attributes(G, 'is_surface')
+                is_pharmacophore = nx.get_node_attributes(G, 'is_pharmacophore')
+                centrality = nx.get_node_attributes(G, 'betweenness_centrality')
+                
+                # Determinación de colores de nodos basados en tipo de residuo y atributos especiales
+                node_colors = []
+                node_sizes = []
+                for node in G.nodes():
+                    # Color base según tipo de residuo
+                    res_type = residue_types.get(node, 'other')
+                    color = RESIDUE_COLORS.get(res_type, RESIDUE_COLORS['other'])
                     
-                labels[node] = f"{node}:{G.nodes[node]['amino_acid']}{pharm_tag}{surf_tag}{ss_tag}"
+                    # Modificación de color/apariencia para residuos especiales
+                    if highlight_pharmacophore and is_pharmacophore.get(node, False):
+                        # Residuos farmacofóricos destacados con color amarillo
+                        color = 'yellow'
+                    elif is_disulfide.get(node, False):
+                        # Cisteínas con puente disulfuro más saturadas
+                        r, g, b = to_rgb(color)
+                        color = (r*1.2 if r*1.2 <= 1 else 1, 
+                                g*1.2 if g*1.2 <= 1 else 1, 
+                                b*1.2 if b*1.2 <= 1 else 1)
+                    
+                    node_colors.append(color)
+                    
+                    # Tamaño basado en centralidad y exposición superficial
+                    base_size = centrality.get(node, 0) * 2000 + 80
+                    if is_surface.get(node, False):
+                        base_size *= 1.3  # Residuos superficiales más grandes
+                    
+                    node_sizes.append(base_size)
+                
+                # Trazado de nodos con colores y tamaños
+                scatter = ax.scatter(xs, ys, zs, c=node_colors, s=node_sizes, alpha=0.8, edgecolors='black')
+                
+                # Dibujo de diferentes tipos de aristas con diferentes estilos
+                for u, v, data in G.edges(data=True):
+                    x = [pos[u][0], pos[v][0]]
+                    y = [pos[u][1], pos[v][1]]
+                    z = [pos[u][2], pos[v][2]]
+                    
+                    edge_type = data.get('type', 'distance')
+                    
+                    if edge_type == 'peptide':
+                        # Enlaces peptídicos como líneas sólidas
+                        ax.plot(x, y, z, color='black', linewidth=1.5, alpha=0.7)
+                    elif edge_type == 'disulfide':
+                        # Puentes disulfuro como líneas amarillas gruesas
+                        ax.plot(x, y, z, color='gold', linewidth=2.5, alpha=1.0)
+                    else:
+                        # Contactos basados en distancia como líneas grises delgadas
+                        ax.plot(x, y, z, color='gray', linewidth=0.5, alpha=0.3)
+                
+                # Adición de etiquetas de nodos si se solicita
+                if show_labels:
+                    for node in G.nodes():
+                        # Adición de etiqueta farmacofórica si es aplicable
+                        pharm_tag = " 🔑" if is_pharmacophore.get(node, False) else ""
+                        ax.text(pos[node][0], pos[node][1], pos[node][2], 
+                            f"{node}:{G.nodes[node]['amino_acid']}{pharm_tag}", 
+                            fontsize=8, color='black')
+                
+                # Dibujo de vector dipolar si está disponible
+                if 'dipole_vector' in G.graph and 'dipole_magnitude' in G.graph:
+                    dipole = G.graph['dipole_vector']
+                    magnitude = G.graph['dipole_magnitude']
+                    
+                    if magnitude > 0:
+                        # Cálculo de centro de la estructura
+                        center = np.mean(np.array([pos[node] for node in G.nodes()]), axis=0)
+                        
+                        # Dibujo de flecha para el dipolo
+                        scaled_dipole = dipole / magnitude * min(6.0, magnitude/4)  # Escala apropiada
+                        ax.quiver(center[0], center[1], center[2], 
+                                scaled_dipole[0], scaled_dipole[1], scaled_dipole[2], 
+                                color='red', arrow_length_ratio=0.3, linewidth=3)
+                        
+                        # Adición de anotación de magnitud de dipolo
+                        ax.text(center[0] + scaled_dipole[0], 
+                            center[1] + scaled_dipole[1], 
+                            center[2] + scaled_dipole[2],
+                            f"Dipolo: {magnitude:.1f} D", 
+                            color='red', fontsize=10)
+                
+                ax.set_title(title)
+                ax.set_xlabel('X (Å)')
+                ax.set_ylabel('Y (Å)')
+                ax.set_zlabel('Z (Å)')
+                
+                # Mejora del ángulo de visión 3D
+                ax.view_init(elev=20, azim=135)
+                plt.tight_layout()
+                
+            else:
+                # Visualización 2D con características mejoradas
+                fig, ax = plt.subplots(figsize=(14, 12))
+                
+                # Obtención de posiciones 2D
+                pos = nx.get_node_attributes(G, 'pos_2d')
+                
+                # Obtención de atributos de nodos
+                residue_types = nx.get_node_attributes(G, 'residue_type')
+                is_disulfide = nx.get_node_attributes(G, 'is_in_disulfide')
+                is_surface = nx.get_node_attributes(G, 'is_surface')
+                is_pharmacophore = nx.get_node_attributes(G, 'is_pharmacophore')
+                centrality = nx.get_node_attributes(G, 'betweenness_centrality')
+                
+                # Determinación de colores y tamaños de nodos
+                node_colors = []
+                node_sizes = []
+                for node in G.nodes():
+                    # Color base según tipo de residuo
+                    res_type = residue_types.get(node, 'other')
+                    color = RESIDUE_COLORS.get(res_type, RESIDUE_COLORS['other'])
+                    
+                    # Modificación de color para residuos especiales
+                    if highlight_pharmacophore and is_pharmacophore.get(node, False):
+                        color = 'yellow'
+                    
+                    node_colors.append(color)
+                    
+                    # Tamaño basado en centralidad y exposición superficial
+                    base_size = centrality.get(node, 0) * 2000 + 100
+                    if is_surface.get(node, False):
+                        base_size *= 1.3
+                    
+                    node_sizes.append(base_size)
+                
+                # Creación de listas de aristas para diferentes tipos
+                peptide_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('type') == 'peptide']
+                disulfide_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('type') == 'disulfide']
+                distance_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('type') == 'distance']
+                
+                # Dibujo de nodos
+                nodes = nx.draw_networkx_nodes(G, pos, 
+                                            node_size=node_sizes, 
+                                            node_color=node_colors, 
+                                            alpha=0.8, 
+                                            edgecolors='black',
+                                            ax=ax)
+                
+                # Dibujo de diferentes tipos de aristas
+                nx.draw_networkx_edges(G, pos, edgelist=peptide_edges, 
+                                    width=2, edge_color='black', alpha=0.7, ax=ax)
+                nx.draw_networkx_edges(G, pos, edgelist=disulfide_edges, 
+                                    width=2.5, edge_color='gold', alpha=1.0, ax=ax)
+                nx.draw_networkx_edges(G, pos, edgelist=distance_edges, 
+                                    width=0.5, edge_color='gray', alpha=0.3, ax=ax)
+                
+                # Adición de etiquetas de nodos si se solicita
+                if show_labels:
+                    # Creación de etiquetas personalizadas
+                    labels = {}
+                    for node in G.nodes():
+                        # Adición de etiqueta farmacofórica si es aplicable
+                        pharm_tag = " 🔑" if is_pharmacophore.get(node, False) else ""
+                        surf_tag = " 📡" if is_surface.get(node, False) else ""
+                        labels[node] = f"{node}:{G.nodes[node]['amino_acid']}{pharm_tag}{surf_tag}"
+                    
+                    nx.draw_networkx_labels(G, pos, labels=labels, font_size=8, font_color='black', ax=ax)
+                
+                # Creación de labels para tipos de residuos
+                legend_elements = [plt.Line2D([0], [0], marker='o', color='w', 
+                                            markerfacecolor=color, markersize=10, label=res_type)
+                                for res_type, color in RESIDUE_COLORS.items()]
+                
+                # Adición de tipos especiales a labels
+                if highlight_pharmacophore:
+                    legend_elements.append(plt.Line2D([0], [0], marker='o', color='w', 
+                                                markerfacecolor='yellow', markersize=10, 
+                                                label='Farmacóforo'))
+                
+                # Adición de tipos de arista a labels
+                legend_elements.extend([
+                    plt.Line2D([0], [0], color='black', lw=2, label='Enlace peptídico'),
+                    plt.Line2D([0], [0], color='gold', lw=2.5, label='Puente disulfuro'),
+                    plt.Line2D([0], [0], color='gray', lw=0.5, label='Proximidad espacial')
+                ])
+                
+                ax.legend(handles=legend_elements, loc='lower right')
+                
+                ax.set_title(title)
+                ax.axis('off')
+                plt.tight_layout()
             
-            nx.draw_networkx_labels(G, pos_2d, labels=labels, font_size=8, font_color='black', ax=ax)
-        
-    
-        # Creación de leyenda para tipos de residuos
-        legend_elements = [
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=RESIDUE_COLORS['hydrophobic'], 
-                      markersize=10, label='Hidrofóbico (A,V,I,L,M,F,Y,W) - Interacción con membrana'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=RESIDUE_COLORS['polar'], 
-                      markersize=10, label='Polar (S,T,N,Q) - Estabilidad estructural'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=RESIDUE_COLORS['positive'], 
-                      markersize=10, label='Positivo (K,R,H) - Crítico para interacción con VSD'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=RESIDUE_COLORS['negative'], 
-                      markersize=10, label='Negativo (D,E) - Interacciones electrostáticas'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=RESIDUE_COLORS['cysteine'], 
-                      markersize=10, label='Cisteína (C) - Puentes disulfuro'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=RESIDUE_COLORS['other'], 
-                      markersize=10, label='Otros residuos (G,P)')
-        ]
-        
-        # Adición de tipos especiales a leyenda
-        if highlight_pharmacophore:
-            legend_elements.append(plt.Line2D([0], [0], marker='o', color='w', 
-                                           markerfacecolor='yellow', markersize=10, 
-                                           label='Farmacóforo  - Residuo esencial para actividad'))
-        
-        # Explicación del tamaño de nodos
-        legend_elements.append(plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='white',
-                                        markeredgecolor='black', markersize=15, 
-                                        label='Tamaño: Centralidad de intermediación - Importancia estructural'))
-        
-        # explicaciones
-        legend_elements.extend([
-            plt.Line2D([0], [0], color='black', lw=2, label='Enlace peptídico - Cadena principal'),
-            plt.Line2D([0], [0], color='gold', lw=2.5, label='Puente disulfuro - Estabilidad estructural'),
-            plt.Line2D([0], [0], color='gray', lw=0.5, label='Proximidad espacial (< 8Å) - Interacciones')
-        ])
-        
-       
-        legend_elements.append(plt.Line2D([0], [0], marker='', color='w', 
-                                        label='Etiqueta: #:AAα/β (#: posición, AA: aminoácido)'))
-        legend_elements.append(plt.Line2D([0], [0], marker='', color='w', 
-                                        label=': Farmacóforo, : Superficie, α/β: Estructura secundaria'))
-        
-        
-        ax.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5),
-                 title="GUÍA DE LECTURA DEL GRAFO", title_fontsize=12)
-        
-        # Título con información sobre la toxina
-        ax.set_title(title, fontsize=14, fontweight='bold')
-        ax.axis('off')
-        
-        # Añadir información sobre el dipolo si está disponible
-        if 'dipole_magnitude' in G.graph and G.graph['dipole_magnitude'] > 0:
-            magnitude = G.graph['dipole_magnitude']
-            ax.text(0.02, 0.02, f"Momento dipolar: {magnitude:.1f} D", 
-                   transform=ax.transAxes, fontsize=10, bbox=dict(facecolor='white', alpha=0.7))
-        
-        plt.tight_layout()
-        plt.show()
+            plt.show()
     
     def analyze_single_toxin(self, peptide_code, cutoff_distance=8.0, plot_3d=False):
         """
@@ -656,7 +724,7 @@ class Nav17ToxinGraphAnalyzer:
                 print(f"• Patrón farmacofórico: {pharmacophore_pattern if pharmacophore_pattern else 'No disponible'}")
                 print(f"• Secuencia (DB): {db_sequence}")
             
-            # 2. Cargar estructura 
+            # 2. Cargar estructura (primero desde DB, luego desde archivo)
             try:
                 structure = self.load_pdb_from_blob(peptide_code)
                 print(f"• Estructura cargada desde base de datos")
@@ -677,26 +745,13 @@ class Nav17ToxinGraphAnalyzer:
             print(f"\n» Generando grafo molecular (distancia corte: {cutoff_distance}Å)...")
             G = self.build_enhanced_graph(structure, cutoff_distance, pharmacophore_pattern)
             
-            # 5. Cálculo de métricas 
+            # 5. Cálculo de métricas simplificadas
             metrics = self.calculate_graph_metrics(G)
-
             
-            degree_centrality = nx.degree_centrality(G)
-            betweenness_centrality = nx.betweenness_centrality(G)
-            closeness_centrality = nx.closeness_centrality(G)
-            clustering_coefficient = nx.clustering(G)  # Por nodo
-
-            # Nodo con el mayor valor en cada métrica
-            degree_centrality_more = max(degree_centrality, key=degree_centrality.get)
-            betweenness_centrality_more = max(betweenness_centrality, key=betweenness_centrality.get)
-            closeness_centrality_more = max(closeness_centrality, key=closeness_centrality.get)
-            clustering_coefficient_more = max(clustering_coefficient, key=clustering_coefficient.get)
-            
-
             # 6. Detección de motivos estructurales
             motifs = self.detect_structural_motifs(G)
             
-            # 7. Mostrar resultados 
+            # 7. Mostrar resultados en formato simplificado
             print("\n=== RESULTADOS DEL ANÁLISIS ===")
             print(f"• Toxina analizada: {peptide_code}")
             print(f"• Información estructural básica:")
@@ -720,37 +775,19 @@ class Nav17ToxinGraphAnalyzer:
                 elif motif == 'hydrophobic_patch':
                     print(f"  - Parche hidrofóbico superficial: {status}")
             
-            # 9. Visualización del grafo 
+            # 9. Visualización del grafo (siempre en 2D)
             title = f"Toxina Nav1.7: {peptide_code} (corte={cutoff_distance}Å)"
             print("\n» Generando visualización 2D del grafo...")
-            self.visualize_enhanced_graph(G, title=title, plot_3d=True, highlight_pharmacophore=True)
+            self.visualize_enhanced_graph(G, title=title, plot_3d=False, highlight_pharmacophore=True)
 
             return {
                 'toxin': peptide_code,
                 'pharmacophore': pharmacophore_pattern,
                 'sequence': str(seq),
+                'nodes': metrics['num_nodes'],
+                'edges': metrics['num_edges'],
+                'disulfide_bridges': metrics['disulfide_count'],
                 'motifs': motifs,
-
-                'graph_properties': {
-                    'nodes': metrics['num_nodes'],
-                    'edges': metrics['num_edges'],
-                    'disulfide_bridges': metrics['disulfide_count'],
-                    'density': nx.density(G),
-                    'clustering_coefficient_avg': nx.average_clustering(G)
-                },
-
-                'centrality_measures': {
-                    'degree_centrality': degree_centrality,
-                    'betweenness_centrality': betweenness_centrality,
-                    'closeness_centrality': closeness_centrality,
-                    'clustering_coefficient': clustering_coefficient,
-
-                    'degree_centrality_more': degree_centrality_more,
-                    'betweenness_centrality_more': betweenness_centrality_more,
-                    'closeness_centrality_more': closeness_centrality_more,
-                    'clustering_coefficient_more': clustering_coefficient_more
-                },
-
                 'graph': G
             }
             
@@ -764,22 +801,11 @@ class Nav17ToxinGraphAnalyzer:
 if __name__ == "__main__":
     analyzer = Nav17ToxinGraphAnalyzer()
     
-    # Selecciona una toxina para analizar 
+    # Selecciona una toxina para analizar (puedes cambiar por cualquier otra en la carpeta pdbs/)
     toxin_to_analyze = "β-TRTX-Cd1a"
     
-    result = analyzer.analyze_single_toxin(toxin_to_analyze, cutoff_distance=6.0, plot_3d=True)
+    # Ejecuta el análisis individual con visualización 2D (ignoramos el parámetro plot_3d)
+    result = analyzer.analyze_single_toxin(toxin_to_analyze, cutoff_distance=8.0, plot_3d=False)
     
-    if result:
-        print("\n--- MÉTRICAS DE CENTRALIDAD Y GRAFO ---")
-        print("Degree centrality:", result['centrality_measures']['degree_centrality'])
-        print("Betweenness centrality:", result['centrality_measures']['betweenness_centrality'])
-        print("Closeness centrality:", result['centrality_measures']['closeness_centrality'])
-        print("Clustering coefficient:", result['centrality_measures']['clustering_coefficient'])
-        print("Density:", result['graph_properties']['density'])
-        
-        print("Degree centrality more:", result['centrality_measures']['degree_centrality_more'])
-        print("Betweenness centrality more:", result['centrality_measures']['betweenness_centrality_more'])
-        print("Closeness centrality more:", result['centrality_measures']['closeness_centrality_more'])
-        print("Clustering coefficient more:", result['centrality_measures']['clustering_coefficient_more'])
-
     print("\nRecuerda: Puedes analizar cualquier toxina cambiando el valor de toxin_to_analyze")
+
