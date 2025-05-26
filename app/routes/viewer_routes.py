@@ -12,6 +12,10 @@ from graphein.protein.config import ProteinGraphConfig
 from graphein.protein.graphs import construct_graph
 from graphein.protein.edges.distance import add_distance_threshold
 from graphein.protein.visualisation import plotly_protein_structure_graph
+from graphein.protein.features.nodes.amino_acid import amino_acid_one_hot
+from graphein.protein.features.nodes.geometry import add_sidechain_vector
+from graphein.protein.edges.atomic import add_atomic_edges, add_bond_order
+from graphein.protein.edges.distance import add_k_nn_edges
 from plotly.utils import PlotlyJSONEncoder
 import json
 
@@ -207,6 +211,7 @@ def get_protein_graph(source, pid):
         # Get threshold parameters
         long_threshold = int(request.args.get('long', 5))
         distance_threshold = float(request.args.get('threshold', 10.0))
+        granularity = request.args.get('granularity', 'atom')  # NEW: Get granularity parameter
         
         # Get PDB data from the database
         conn = sqlite3.connect(DB_PATH)
@@ -234,14 +239,27 @@ def get_protein_graph(source, pid):
             temp_path = temp_file.name
         
         try:
-            # Configure and create graph
-            cfg = ProteinGraphConfig(
-                edge_construction_functions=[
-                    partial(add_distance_threshold,
-                            long_interaction_threshold=long_threshold,
-                            threshold=distance_threshold)
-                ]
-            )
+            # Configure and create graph based on granularity
+            if granularity == 'atom':
+                cfg = ProteinGraphConfig(
+                    granularity="atom",
+                    edge_construction_functions=[
+                        partial(add_distance_threshold,
+                                long_interaction_threshold=long_threshold,
+                                threshold=distance_threshold)
+                    ]
+                )
+                plot_title = f"Grafo de Átomos (ID: {pid})"
+            else:  # granularity == 'CA'
+                cfg = ProteinGraphConfig(
+                    granularity="CA",  # This uses only CA atoms
+                    edge_construction_functions=[
+                        partial(add_distance_threshold,
+                                long_interaction_threshold=long_threshold,
+                                threshold=distance_threshold)
+                    ]
+                )
+                plot_title = f"Grafo de CA (ID: {pid})"
             
             # Construct graph from temp file
             G = construct_graph(config=cfg, pdb_code=None, path=temp_path)
@@ -249,14 +267,14 @@ def get_protein_graph(source, pid):
             # Calculate graph properties
             props = compute_graph_properties(G)
             
-           # Crear gráfico estilo Graphein
+            # Create Plotly visualization
             fig = plotly_protein_structure_graph(
                 G,
                 colour_nodes_by="seq_position",
                 colour_edges_by="kind",
                 label_node_ids=False,
-                node_size_multiplier=1,
-                plot_title=f"Grafo de proteína (ID: {pid})"
+                node_size_multiplier=0,
+                plot_title=plot_title
             )
             
             fig.update_layout(
@@ -265,7 +283,7 @@ def get_protein_graph(source, pid):
                         title='X',
                         showgrid=True,
                         zeroline=True,
-                        backgroundcolor='rgba(240,240,240,0.9)',  # plano visible
+                        backgroundcolor='rgba(240,240,240,0.9)',
                         showbackground=True,
                         gridcolor='lightgray',
                         showticklabels=True,
@@ -306,19 +324,19 @@ def get_protein_graph(source, pid):
                 )
             )
             
-            fig.update_traces(marker=dict(opacity=0.9), selector=dict(mode='markers'), )
+            fig.update_traces(marker=dict(opacity=0.9), selector=dict(mode='markers'))
             fig.update_traces(line=dict(width=2), selector=dict(mode='lines'))
             
             for trace in fig.data:
                 if trace.mode == 'markers':
-                    trace.name = "Residuos"
+                    trace.name = "Residuos" if granularity == 'CA' else "Átomos"
                 elif trace.mode == 'lines':
                     trace.name = "Conexiones"
 
-            # Extraer datos Plotly
+            # Extract Plotly data
             fig_json = fig.to_plotly_json()
 
-            # Enviar al frontend
+            # Send to frontend
             from flask import Response
 
             payload = {

@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Tab switching functionality
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
+    const propertiesContainer = document.querySelector('.graph-properties-container');
     
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -14,13 +15,29 @@ document.addEventListener("DOMContentLoaded", () => {
             // Update active content
             tabContents.forEach(content => content.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
+            
+            // Show/hide properties table based on active tab
+            if (tabId === 'graph-view') {
+                propertiesContainer.style.display = 'block';
+                // Add class to body for CSS targeting if needed
+                document.body.classList.add('graph-tab-active');
+            } else {
+                propertiesContainer.style.display = 'none';
+                document.body.classList.remove('graph-tab-active');
+            }
         });
     });
+    
+    // Initialize - hide table on page load since structure tab is default
+    if (propertiesContainer) {
+        propertiesContainer.style.display = 'none';
+    }
     
     // Graph visualization functionality
     const graphPlotElement = document.getElementById('graph-plot');
     const longInput = document.getElementById('long-input');
     const distInput = document.getElementById('dist-input');
+    const granularityToggle = document.getElementById('granularity-toggle'); // NEW
     const propertiesHeader = document.getElementById('properties-header');
     const propertiesValues = document.getElementById('properties-values');
     
@@ -42,6 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Event listeners for inputs
     longInput.addEventListener('change', updateGraphVisualization);
     distInput.addEventListener('change', updateGraphVisualization);
+    granularityToggle.addEventListener('change', updateGraphVisualization); // NEW
     
     // Listen for protein selection changes
     const groupSelect = document.getElementById('groupSelect');
@@ -72,12 +90,13 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const longValue = longInput.value;
         const distValue = distInput.value;
+        const granularity = granularityToggle.checked ? 'atom' : 'CA'; // NEW
         
         try {
             showLoading(graphPlotElement);
             
-            // Request graph data from server
-            const response = await fetch(`/get_protein_graph/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}`);
+            // Request graph data from server with granularity parameter
+            const response = await fetch(`/get_protein_graph/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error: ${response.status}`);

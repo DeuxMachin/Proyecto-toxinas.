@@ -41,28 +41,52 @@
         </div>
         
         <div id="graph-view" class="tab-content">
-            <div class="controls-container">
-                <div class="control-group">
-                    <label for="long-input">Separación de secuencia:</label>
-                    <input id="long-input" type="number" value="5" min="0" step="1">
-                </div>
-                
-                <div class="control-group">
-                    <label for="dist-input">Distancia umbral (Å):</label>
-                    <input id="dist-input" type="number" value="10.0" min="0" step="0.1">
+            <div class="graph-controls">
+                <div class="controls-container">
+                    <div class="control-group">
+                        <label for="long-input">Separación de secuencia:</label>
+                        <input id="long-input" type="number" value="5" min="0" step="1">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="dist-input">Distancia umbral (Å):</label>
+                        <input id="dist-input" type="number" value="10.0" min="0" step="0.1">
+                    </div>
+                    
+                    <!-- NEW: Granularity toggle switch -->
+                    <div class="control-group">
+                        <label for="granularity-toggle">Representación:</label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="granularity-toggle" checked>
+                            <label for="granularity-toggle" class="slider">
+                                <span class="slider-text" data-on="Átomos" data-off="CA"></span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <div id="graph-plot"></div>
-            
-            <div class="graph-properties">
-                <h4>Propiedades del Grafo</h4>
+            <div class="graph-plot-container">
+                <div id="graph-plot"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Separate container for the properties table outside the visualization container -->
+    <div class="graph-properties-container">
+        <div class="graph-properties">
+            <h4>Propiedades del Grafo</h4>
+            <div class="table-wrapper">
                 <table class="properties-table" id="properties-table">
                     <thead>
-                        <tr id="properties-header"></tr>
+                        <tr id="properties-header">
+                            <th>Seleccione una proteína para ver las propiedades</th>
+                        </tr>
                     </thead>
                     <tbody>
-                        <tr id="properties-values"></tr>
+                        <tr id="properties-values">
+                            <td>-</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
