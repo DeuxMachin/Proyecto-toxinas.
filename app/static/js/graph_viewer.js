@@ -8,15 +8,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         button.addEventListener('click', () => {
             const tabId = button.getAttribute('data-tab');
             
-            
             tabButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
             
-           
             tabContents.forEach(content => content.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             
-
             if (tabId === 'graph-view') {
                 propertiesContainer.style.display = 'block';
                 document.body.classList.add('graph-tab-active');
@@ -36,17 +33,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         propertiesContainer.style.display = 'none';
     }
     
-   
     const graphPlotElement = document.getElementById('graph-plot');
     const longInput = document.getElementById('long-input');
     const distInput = document.getElementById('dist-input');
     const granularityToggle = document.getElementById('granularity-toggle');
     
-  
     let currentProteinGroup = null;
     let currentProteinId = null;
     
-     // Inicializamos el grafico vacio con plotly
+    // Inicializamos el grafico vacio con plotly
     Plotly.newPlot(graphPlotElement, [], {
         title: 'Seleccione una proteína para ver su grafo',
         height: 500,
@@ -62,7 +57,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     distInput.addEventListener('change', updateGraphVisualization);
     granularityToggle.addEventListener('change', updateGraphVisualization);
     
-   
     const groupSelect = document.getElementById('groupSelect');
     const proteinSelect = document.getElementById('proteinSelect');
     
@@ -80,7 +74,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateGraphVisualization();
     });
     
-   
     currentProteinGroup = groupSelect.value;
     
     // Esperamos a que los selectores estén llenos
@@ -93,7 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }, 800);
     
-    // FUncion para actualizar la visualización del grafo
+    // Función para actualizar la visualización del grafo
     async function updateGraphVisualization() {
         if (!currentProteinGroup || !currentProteinId) {
             clearAnalysisPanel();
@@ -123,10 +116,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             Plotly.react(graphPlotElement, data.plotData, data.layout);
             
             updateBasicStructuralInfo(data.properties, granularity);
-            
-            
             updateAdvancedMetrics(data); 
-            
             analyzeMolstarStructure();
 
         } catch (error) {
@@ -143,15 +133,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     function updateBasicStructuralInfo(properties, granularity) {
         if (!properties) return;
         
-       
         const toxinName = `${currentProteinGroup.toUpperCase()}_${currentProteinId}`;
         updateElementText('toxin-name', toxinName);
         
         // Actualizar datos básicos del grafo
         updateElementText('num-nodes', properties.num_nodes || '-');
         updateElementText('num-edges', properties.num_edges || '-');
-        
-
         
         // Densidad del grafo
         updateElementText('graph-density', (properties.density || 0).toFixed(4));
@@ -162,13 +149,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Mostrar tipo de grafo (átomo o CA)
         const granularityText = granularity === 'atom' ? 'Nivel atómico' : 'Nivel de residuos (CA)';
         
-
         const infoElement = document.getElementById('graph-info');
         if (infoElement) {
             infoElement.textContent = `Grafo visualizado en: ${granularityText}`;
         }
     }
-
 
     async function analyzeMolstarStructure() {
         try {
@@ -192,7 +177,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             // No mostramos el error para mantener la interfaz limpia
         }
     }
-
     
     function updateAdvancedMetrics(analysis) {
         // Métricas de centralidad 
@@ -241,8 +225,58 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     
     function hideLoading(element) {
-        
+        // Función vacía por ahora
     }
+
+    // Configurar botón de exportación 
+    function setupExportButton() {
+        const exportBtn = document.getElementById('export-csv-btn');
+        if (!exportBtn) return;
+        
+        const buttonText = exportBtn.querySelector('.button-text');
+        const loadingText = exportBtn.querySelector('.loading-text');
+        
+        exportBtn.addEventListener('click', async () => {
+            if (!currentProteinGroup || !currentProteinId) {
+                alert('Por favor seleccione una proteína primero');
+                return;
+            }
+            
+            // Mostrar estado de carga
+            exportBtn.disabled = true;
+            buttonText.style.display = 'none';
+            loadingText.style.display = 'inline';
+            
+            try {
+                const longValue = longInput.value;
+                const distValue = distInput.value;
+                const granularity = granularityToggle.checked ? 'atom' : 'CA';
+                
+                const url = `/export_residues_csv/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}`;
+                
+                // Crear enlace temporal para descarga
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `residuos_metricas_${currentProteinGroup}_${currentProteinId}_${granularity}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+            } catch (error) {
+                alert('Error al generar el archivo CSV: ' + error.message);
+            } finally {
+                // Restaurar estado del botón
+                setTimeout(() => {
+                    exportBtn.disabled = false;
+                    buttonText.style.display = 'inline';
+                    loadingText.style.display = 'none';
+                }, 2000);
+            }
+        });
+    }
+
+    // Llamar setupExportButton DENTRO del scope donde están definidas las variables
+    setupExportButton();
 
     // Exponer funciones globalmente
     window.updateGraphVisualization = updateGraphVisualization;
@@ -263,15 +297,12 @@ window.triggerGraphUpdate = function(group, id) {
     }
 };
 
-// REEMPLAZAR la función updateAnalysisPanel con esta versión simplificada
+// Funciones auxiliares fuera del scope principal
 function updateAnalysisPanel(analysisData) {
     if (!analysisData) {
         return;
     }
     
- 
-    
- 
     const nodesElement = document.getElementById('num-nodes');
     if (nodesElement && nodesElement.textContent === '-') {
         updateElementText('toxin-name', analysisData.toxin || '-');
@@ -290,7 +321,6 @@ function updateElementText(elementId, text) {
     }
 }
 
-
 function populateTop5List(listId, items) {
     const list = document.getElementById(listId);
     if (!list) return;
@@ -306,10 +336,20 @@ function populateTop5List(listId, items) {
     
     items.forEach((item, index) => {
         const li = document.createElement('li');
-        li.textContent = `${item.residueName}${item.residue} : ${item.value.toFixed(4)}`;
-
+        // Verificar si tenemos la información completa del residuo
+        if (item.residueName && item.chain) {
+            // Formato deseado: "VAL21 (Cadena A): 0.1122"
+            li.textContent = `${item.residueName}${item.residue} (Cadena ${item.chain}): ${item.value.toFixed(4)}`;
+        } else {
+            // Fallback al formato anterior si no tenemos toda la información
+            li.textContent = `${item.residueName}${item.residue}: ${item.value.toFixed(4)}`;
+        }
         list.appendChild(li);
     });
+}
+
+function clearAnalysisPanel() {
+    // Función para limpiar el panel de análisis
 }
 
 

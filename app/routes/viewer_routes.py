@@ -4,6 +4,8 @@ import sqlite3
 import tempfile
 import os
 import sys
+import io
+import csv
 import numpy as np
 
 from graphein.protein.config import ProteinGraphConfig
@@ -312,6 +314,140 @@ def get_protein_graph(source, pid):
         print(f"💥 Error generating graph: {str(e)}")
         import traceback
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@viewer_bp.route("/export_residues_csv/<string:source>/<int:pid>")
+def export_residues_csv(source, pid):
+    try:
+        # Obtener parámetros
+        long_threshold = int(request.args.get('long', 5))
+        distance_threshold = float(request.args.get('threshold', 10.0))
+        granularity = request.args.get('granularity', 'CA')
+        
+        # Obtener datos PDB
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        if source == "toxinas":
+            cursor.execute("SELECT pdb_file FROM Peptides WHERE peptide_id = ?", (pid,))
+        elif source == "nav1_7":
+            cursor.execute("SELECT pdb_blob FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+        else:
+            return jsonify({"error": "Invalid source"}), 400
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return jsonify({"error": "PDB not found"}), 404
+        
+        pdb_data = result[0]
+
+        # Crear archivo temporal
+        with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as temp_file:
+            if isinstance(pdb_data, bytes):
+                temp_file.write(pdb_data)
+            else:
+                temp_file.write(pdb_data.encode('utf-8'))
+            temp_path = temp_file.name
+        
+        try:
+            # Construir grafo
+            if granularity == 'atom':
+                cfg = ProteinGraphConfig(
+                    granularity="atom",
+                    edge_construction_functions=[
+                        partial(add_distance_threshold,
+                                long_interaction_threshold=long_threshold,
+                                threshold=distance_threshold)
+                    ]
+                )
+            else:  
+                cfg = ProteinGraphConfig(
+                    granularity="CA",
+                    edge_construction_functions=[
+                        partial(add_distance_threshold,
+                                long_interaction_threshold=long_threshold,
+                                threshold=distance_threshold)
+                    ]
+                )
+            
+            G = construct_graph(config=cfg, pdb_code=None, path=temp_path)
+            
+            # Calcular métricas de centralidad para todos los residuos
+            degree_centrality = nx.degree_centrality(G)
+            betweenness_centrality = nx.betweenness_centrality(G)
+            closeness_centrality = nx.closeness_centrality(G)
+            clustering_coefficient = nx.clustering(G)
+            
+            # Preparar datos para CSV
+            csv_data = []
+
+            for node, data in G.nodes(data=True):
+                if granularity == 'CA':
+                    
+                    parts = str(node).split(':')
+                    if len(parts) >= 3:
+                        chain = parts[0]
+                        residue_name = parts[1]
+                        residue_number = parts[2]
+                    else:
+                        chain = data.get('chain_id', 'A')
+                        residue_name = data.get('residue_name', 'UNK')
+                        residue_number = str(node)
+                else:  # granularity == 'atom'
+                    # node es un entero; los datos están en el diccionario
+                    chain = data.get('chain_id', 'A')
+                    residue_name = data.get('residue_name', 'UNK')
+                    residue_number = str(data.get('residue_number', node))
+
+                csv_data.append({
+                    'Cadena': chain,
+                    'Nombre_Residuo': residue_name,
+                    'Numero_Residuo': residue_number,
+                    'Centralidad_Grado': round(degree_centrality.get(node, 0), 6),
+                    'Centralidad_Intermediacion': round(betweenness_centrality.get(node, 0), 6),
+                    'Centralidad_Cercania': round(closeness_centrality.get(node, 0), 6),
+                    'Coeficiente_Agrupamiento': round(clustering_coefficient.get(node, 0), 6)
+                })
+
+
+            
+            # Ordenar por centralidad de grado (descendente)
+            csv_data.sort(key=lambda x: x['Centralidad_Grado'], reverse=True)
+            
+        
+            
+            output = io.StringIO()
+            fieldnames = ['Residuo_ID', 'Cadena', 'Nombre_Residuo', 'Numero_Residuo', 
+                         'Centralidad_Grado', 'Centralidad_Intermediacion', 
+                         'Centralidad_Cercania', 'Coeficiente_Agrupamiento']
+            
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(csv_data)
+            
+            csv_content = output.getvalue()
+            output.close()
+            
+            # Retornar CSV como respuesta
+            from flask import Response
+            filename = f"residuos_metricas_{source}_{pid}_{granularity}.csv"
+            
+            return Response(
+                csv_content,
+                mimetype="text/csv",
+                headers={"Content-disposition": f"attachment; filename={filename}"}
+            )
+            
+        finally:
+            # Limpiar archivo temporal
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+                
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 def convert_numpy_to_lists(obj):

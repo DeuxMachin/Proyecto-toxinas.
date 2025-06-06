@@ -423,3 +423,39 @@ input:not(:checked) + .slider .slider-text:before {
     }
 }
 
+/* Export Controls */
+.export-controls {
+    text-align: center;
+    padding: 15px;
+}
+
+.export-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.export-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.export-button:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.export-info {
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: #6c757d;
+    font-style: italic;
+}
