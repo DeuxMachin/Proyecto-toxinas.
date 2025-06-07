@@ -1,7 +1,11 @@
 import os
 import sqlite3
-from cortar_pdb import PDBHandler
 
+import sys
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+from extractors.cortar_pdb import PDBHandler
 class PDBCutterInserter:
     def __init__(self, db_path: str = "database/toxins.db", pdb_folder: str = "pdbs/"):
         self.db_path = db_path

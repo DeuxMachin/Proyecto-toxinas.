@@ -459,3 +459,42 @@ input:not(:checked) + .slider .slider-text:before {
     color: #6c757d;
     font-style: italic;
 }
+/* Family Export Section */
+.family-export-section {
+    margin-top: 20px;
+    padding: 15px;
+    border: 2px dashed #667eea;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.family-export-section h6 {
+    margin-bottom: 10px;
+    color: #667eea;
+    font-weight: 600;
+}
+
+.family-selector {
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background: white;
+}
+
+.family-export-btn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    margin-top: 10px;
+}
+
+.family-export-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.family-export-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #218838 0%, #1c9c85 100%);
+}

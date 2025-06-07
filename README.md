@@ -13,11 +13,13 @@ Este proyecto proporciona herramientas para analizar la estructura y propiedades
 
 ### Características Principales
 
-- **Análisis de Centralidad**: Cálculo de métricas de centralidad (betweenness, closeness, eigenvector, degree) para identificar residuos importantes
+- **Análisis de Centralidad**: Cálculo de métricas de centralidad (betweenness, closeness, degree) para identificar residuos importantes
 - **Visualización 3D**: Integración completa con Molstar para visualización molecular interactiva
 - **Exportación de Datos**: Funcionalidad completa de exportación CSV con todas las métricas de residuos
 - **Base de Datos**: Sistema de almacenamiento SQLite para gestión eficiente de estructuras PDB
-- **Métricas en Tiempo Real**: Visualización dinámica de métricas con formato "VAL21 (Cadena A): 0.1122"
+- **Análisis de IC50**:  Integración de datos de actividad biológica; todos los valores se convierten a nM para permitir análisis comparativos de actividad  
+
+- **Correlación Estructura-Actividad**: Análisis combinado de métricas estructurales y datos IC50
 
 ## 🚀 Instalación Rápida
 
@@ -98,78 +100,50 @@ El sistema calcula automáticamente las siguientes métricas:
 - **Degree Centrality**: Número de conexiones directas de cada residuo
 - **Betweenness Centrality**: Identifica residuos que actúan como "puentes" en la estructura
 - **Closeness Centrality**: Mide qué tan "cerca" está un residuo de todos los demás
-- **Eigenvector Centrality**: Identifica residuos conectados a otros residuos importantes
 
-### Formato de Visualización
 
-Las métricas se muestran en el formato optimizado: `"VAL21 (Cadena A): 0.1122"`
 
-### Funcionalidad de Exportación CSV
 
-El archivo CSV exportado incluye todas las métricas calculadas:
-- ID del residuo
-- Nombre del residuo  
-- Cadena
-- Posición
-- Degree centrality
-- Betweenness centrality
-- Closeness centrality  
-- Eigenvector centrality
-- Clustering coefficient
-matplotlib >= 3.5.0        # Visualización estática
-seaborn >= 0.11.0          # Visualización estadística
-plotly >= 5.0.0            # Visualización interactiva
 
-# Framework web
-flask >= 2.0.0             # Framework web principal
-flask-cors >= 3.0.0        # Manejo de CORS
 
-# Bases de datos y utilidades
-sqlite3                    # Base de datos (incluido en Python)
-requests >= 2.25.0         # Peticiones HTTP para APIs
-aiohttp >= 3.8.0           # Peticiones asíncronas
-lxml >= 4.6.0              # Procesamiento XML
+
+## 📊 Estructura de Base de Datos
+
+### Tablas Principales
+
+#### `peptides`
+- **Función**: Almacena información estructural de péptidos
+- **Campos clave**: `id`, `name`, `source`, `pdb_content`, `sequence`
+
+#### `Nav1_7_InhibitorPeptides` 
+- **Función**: Datos de actividad biológica y clasificación
+- **Campos clave**: 
+  - `peptide_name`: Nombre del péptido/toxina
+  - `ic50_value`: Valor de concentración inhibitoria 50%
+  - `ic50_unit`: Unidad de medida (μM, nM, mM)
+  - `classification`: Familia de toxina (ej: μ-TRTX-Hd1a)
+
+#### Integración de Datos
+- **Normalización IC50**: Conversión automática a nM para análisis consistente
+- **Clasificación por familias**: Consultas SQL optimizadas para agrupar subfamilias
+- **Correlación estructural**: Join entre métricas topológicas y datos de actividad
+
+### Consultas Ejemplo
+
+#### Obtener familia μ-TRTX-H:
+```sql
+SELECT DISTINCT peptide_name FROM Nav1_7_InhibitorPeptides 
+WHERE peptide_name LIKE 'μ-TRTX-%2a' OR peptide_name LIKE 'mu-TRTX-%2a'
 ```
 
-## 🛠️ Instalación
-
-### 1. Clonar el Repositorio
-```bash
-git clone https://github.com/usuario/proyecto-toxinas.git
-cd proyecto-toxinas
+#### Normalización IC50:
+```sql
+CASE 
+    WHEN ic50_unit = 'μM' THEN ic50_value * 1000
+    WHEN ic50_unit = 'mM' THEN ic50_value * 1000000
+    ELSE ic50_value 
+END as normalized_ic50_nm
 ```
-
-### 2. Crear Entorno Virtual
-```powershell
-python -m venv venv
-
-# Windows
-venv\Scripts\Activate.ps1
-
-# Si hay problemas de permisos, ejecutar:
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### 3. Instalar Dependencias
-```powershell
-pip install -r requirements.txt
-```
-
-### 4. Configurar Base de Datos
-```powershell
-# Crear la base de datos
-python database/create_db.py
-
-# Opcional: Insertar datos de ejemplo
-python database/pdb_data_insert.py
-```
-
-### 5. Ejecutar la Aplicación
-```powershell
-python run.py
-```
-
-La aplicación estará disponible en `http://localhost:5000`
 
 ## 📁 Estructura del Proyecto
 
@@ -290,7 +264,17 @@ Genera y analiza el grafo molecular con parámetros personalizables.
 ```http
 GET /export_residues_csv/<source>/<id>?long=5&threshold=10.0&granularity=CA
 ```
-Exporta métricas completas en formato CSV.
+Exporta métricas completas en formato CSV para un péptido individual.
+
+### Exportación por Familias
+```http
+GET /export_family_csv/<family_name>
+```
+Exporta datos completos de una familia específica de toxinas con integración IC50.
+- **Parámetros soportados**: 
+  - `family_name`: Nombre de la familia (ej: "μ-TRTX-H", "μ-TRTX-C", "κ-TRTX")
+- **Formato de respuesta**: Archivo CSV con datos combinados de estructura y actividad
+- **Características**: Normalización automática de IC50, diferenciación de subfamilias
 
 ## 🧪 Análisis Científico
 
@@ -307,6 +291,26 @@ Exporta métricas completas en formato CSV.
 - **Análisis de puentes disulfuro**: Estabilidad estructural
 - **Mapeo de superficies de interacción**: Regiones de unión al canal
 - **Clasificación de toxinas**: Por patrones estructurales
+
+### Análisis de Relación Estructura-Actividad (SAR)
+
+#### Integración de Datos IC50
+- **Base de datos integrada**: Tabla `Nav1_7_InhibitorPeptides` con datos de actividad
+- **Normalización automática**: Conversión de μM y mM a nM para análisis consistente
+- **Correlación estructural**: Análisis combinado de métricas de centralidad con actividad biológica
+
+#### Clasificación de Familias de Toxinas
+- **μ-TRTX Subfamilias**: 
+  - **μ-TRTX-H** (terminación 2a): Subfamilia con terminación específica
+  - **μ-TRTX-C** (terminación 2b): Subfamilia alternativa
+- **κ-TRTX**: Familia adicional de toxinas 
+- **Otros grupos**: Extensible para nuevas clasificaciones
+
+#### Metodología de Análisis
+1. **Extracción de características**: Métricas topológicas del grafo molecular
+2. **Integración de bioactividad**: Datos IC50 experimentales
+3. **Análisis comparativo**: Comparación entre familias y subfamilias
+4. **Identificación de patrones**: Correlaciones estructura-actividad
 
 ## 🎮 Guía de Uso Rápido
 
@@ -331,6 +335,71 @@ Navegar a `http://localhost:5000`
 - Revisar métricas de centralidad en el panel derecho
 - Examinar el grafo 3D interactivo
 - Exportar datos completos en CSV si es necesario
+
+## 🔬 Análisis Avanzado por Familias
+
+### Funcionalidad de Exportación por Familias
+
+La aplicación ahora incluye un sistema avanzado para el análisis comparativo de familias de toxinas:
+
+#### Características Principales
+- **Selector de Familia**: Interfaz intuitiva para seleccionar familias específicas
+- **Exportación Masiva**: Descarga completa de datasets por familia
+- **Análisis SAR**: Correlación estructura-actividad con datos IC50 integrados
+
+#### Familias Soportadas
+1. **μ-TRTX-H (mu-TRTX-H)**: Subfamilia con terminación 2a
+2. **μ-TRTX-C (mu-TRTX-C)**: Subfamilia con terminación 2b  
+3. **κ-TRTX (kappa-TRTX)**: Familia kappa de toxinas
+4. **Otras familias**: Extensible para nuevas clasificaciones
+
+#### Uso del Sistema de Familias
+
+1. **Acceder a la sección**: Localizar el panel "Exportar por Familia" en la interfaz
+2. **Seleccionar familia**: Usar el menú desplegable para elegir la familia de interés
+3. **Exportar datos**: Hacer clic en "Exportar Familia" para descargar el CSV
+4. **Analizar resultados**: El archivo incluye todas las métricas estructurales + datos IC50
+
+#### Estructura del CSV Exportado
+```csv
+Residue_ID,Residue_Name,Chain,Position,Degree_Centrality,Betweenness_Centrality,Closeness_Centrality,Eigenvector_Centrality,Clustering_Coefficient,Peptide,IC50_Value,IC50_Unit
+μ-TRTX-Hd1a_1,MET,A,1,0.023,0.0045,0.1234,0.0891,0.456,μ-TRTX-Hd1a,150.0,nM
+μ-TRTX-Hd1a_2,CYS,A,2,0.045,0.0123,0.1567,0.1234,0.567,μ-TRTX-Hd1a,150.0,nM
+```
+
+#### Aplicaciones Científicas
+- **Análisis comparativo**: Comparar métricas entre diferentes familias
+- **Identificación de patrones**: Encontrar residuos conservados críticos
+- **Correlación SAR**: Relacionar propiedades estructurales con actividad biológica
+- **Clasificación filogenética**: Agrupar toxinas por características topológicas
+
+### Mejoras Técnicas Implementadas
+
+#### Correcciones de Formato
+- **Visualización de residuos**: Formato estandarizado "VAL21 (Cadena A): 0.1122"
+- **Función `populateTop5List`**: Corrección completa para mostrar nombres de aminoácidos correctos
+- **Manejo de valores undefined**: Eliminación de campos "undefined" en la interfaz
+
+#### Optimizaciones de Rendimiento
+- **Consultas SQL optimizadas**: Queries específicas por familia para mejor rendimiento
+- **Normalización de IC50**: Algoritmo eficiente para conversión de unidades
+- **Manejo de Unicode**: Mapeo de caracteres griegos para compatibilidad de archivos
+
+#### Sistema de Logging
+- **Debugging avanzado**: Logs detallados para el proceso de exportación de familias
+- **Tracking de errores**: Identificación específica de problemas en consultas de base de datos
+- **Monitoreo de rendimiento**: Seguimiento de tiempos de procesamiento
+
+#### Resolución de Conflictos
+- **Rutas duplicadas**: Eliminación del conflicto `/export_family_csv` en viewer_routes.py
+- **Consolidación de funciones**: Unificación de lógica de exportación
+- **Manejo de errores**: Sistema robusto de captura y manejo de excepciones
+
+### Paso 6: Análisis por familias (Nuevo)
+- **Seleccionar familia**: Usar el selector de familia para análisis comparativo
+- **Exportar por familia**: Descargar datasets completos de familias específicas
+- **Análisis IC50**: Revisar correlaciones estructura-actividad en los datos exportados
+- **Comparación de subfamilias**: Evaluar diferencias entre μ-TRTX-H y μ-TRTX-C
 
 
 
@@ -357,6 +426,41 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - Comprobar que no hay conflictos con otros servicios
 - Revisar logs en la consola del navegador
 
+### Problemas con Exportación de Familias
+
+#### CSV vacío o no se descarga
+```python
+# Verificar datos en la base
+import sqlite3
+conn = sqlite3.connect('database/toxins.db')
+cursor = conn.cursor()
+cursor.execute("SELECT COUNT(*) FROM Nav1_7_InhibitorPeptides WHERE peptide_name LIKE 'μ-TRTX-%'")
+print(f"Registros encontrados: {cursor.fetchone()[0]}")
+```
+
+#### Error en caracteres Unicode
+- **Problema**: Nombres de archivo con caracteres griegos causan errores
+- **Solución**: El sistema convierte automáticamente μ→mu, κ→kappa, etc.
+
+#### Valores IC50 incorrectos
+- **Verificar normalización**: Todos los valores deben estar en nM
+- **Unidades soportadas**: nM, μM, mM (conversión automática)
+
+### Problemas de Visualización
+
+#### Residuos muestran "undefined"
+- **Causa**: Error en función `populateTop5List` 
+- **Estado**: ✅ **RESUELTO** en v1.2.0
+- **Verificación**: Los residuos ahora muestran formato "VAL21 (Cadena A): 0.1122"
+
+#### Métricas no calculan correctamente
+```python
+# Verificar parámetros de entrada
+threshold = 8.0  # Distancia recomendada
+granularity = "CA"  # Nivel de residuo
+sequence_separation = 5  # Separación secuencial
+```
+
 ## 📄 Licencia
 
 Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
@@ -367,6 +471,11 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 - **Mol***: "Mol* Viewer: modern web app for 3D visualization and analysis of large biomolecular structures"
 - **NetworkX**: "Exploring network structure, dynamics, and function using NetworkX"
 - **Nav1.7**: "Voltage-gated sodium channel Nav1.7 and pain: from gene to pharmacology"
+- **Pharmacophore**: En el paper de Sharma FEBS Letters - 2025 - S… es: X1X2-S-WCKX3 → patrón basado en los residuos críticos para inhibición de Nav1.7.
+→ Deberías poner una frase corta cuando usas el campo "Pharmacophore" en la tabla:
+Patrón de residuos críticos que definen la actividad inhibidora sobre Nav1.7 (ver Sharma et al., 2025).
+
+
 
 ## 👥 Autores
 
@@ -381,6 +490,18 @@ Para preguntas técnicas o científicas:
 - **Documentación**: Wiki del proyecto
 
 ## 🔄 Actualizaciones Recientes
+
+### v1.2.0 (Junio 2025) - **NUEVA VERSIÓN**
+- ✅ **Exportación por Familias**: Sistema completo de exportación CSV agrupado por familias de toxinas
+- ✅ **Integración IC50**: Correlación automática con datos de actividad biológica (nM)
+- ✅ **Diferenciación de Subfamilias**: Clasificación μ-TRTX-H (2a) vs μ-TRTX-C (2b)
+
+
+### v1.1.0 (Junio 2025)
+- ✅ Corrección de formato de visualización de residuos
+- ✅ Mejoras en la función `populateTop5List`
+- ✅ Optimización de consultas de base de datos
+- ✅ Resolución de conflictos de rutas duplicadas
 
 ### v1.0.0 (Junio 2025)
 - ✅ Sistema completo de análisis de grafos moleculares

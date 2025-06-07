@@ -231,18 +231,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Configurar botón de exportación 
     function setupExportButton() {
         const exportBtn = document.getElementById('export-csv-btn');
+        const familySelector = document.getElementById('family-selector');
+        const exportFamilyBtn = document.getElementById('export-family-csv-btn');
+        
         if (!exportBtn) return;
         
         const buttonText = exportBtn.querySelector('.button-text');
         const loadingText = exportBtn.querySelector('.loading-text');
         
+        // Exportación individual (código actualizado)
         exportBtn.addEventListener('click', async () => {
             if (!currentProteinGroup || !currentProteinId) {
-                alert('Por favor seleccione una proteína primero');
+                alert('Por favor seleccione una toxina primero');
                 return;
             }
             
-            // Mostrar estado de carga
             exportBtn.disabled = true;
             buttonText.style.display = 'none';
             loadingText.style.display = 'inline';
@@ -252,12 +255,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const distValue = distInput.value;
                 const granularity = granularityToggle.checked ? 'atom' : 'CA';
                 
+                const nameResponse = await fetch(`/get_toxin_name/${currentProteinGroup}/${currentProteinId}`);
+                const nameData = await nameResponse.json();
+                const toxinName = nameData.toxin_name || `${currentProteinGroup}_${currentProteinId}`;
+                
+                const cleanName = toxinName.replace(/[^\w\-_]/g, '');
+                
+                let filename;
+                if (currentProteinGroup === "nav1_7") {
+                    filename = `Nav1.7-${cleanName}.csv`;
+                } else {
+                    filename = `Toxinas-${cleanName}.csv`;
+                }
+                
                 const url = `/export_residues_csv/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}`;
                 
-                // Crear enlace temporal para descarga
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `residuos_metricas_${currentProteinGroup}_${currentProteinId}_${granularity}.csv`;
+                link.download = filename;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -265,7 +280,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             } catch (error) {
                 alert('Error al generar el archivo CSV: ' + error.message);
             } finally {
-                // Restaurar estado del botón
                 setTimeout(() => {
                     exportBtn.disabled = false;
                     buttonText.style.display = 'inline';
@@ -273,8 +287,75 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }, 2000);
             }
         });
+        
+        // Habilitar/deshabilitar botón de familia basado en selección
+        if (familySelector && exportFamilyBtn) {
+            familySelector.addEventListener('change', () => {
+                exportFamilyBtn.disabled = !familySelector.value;
+            });
+            
+            // Exportación por familias 
+            exportFamilyBtn.addEventListener('click', async () => {
+                const selectedFamily = familySelector.value;
+                if (!selectedFamily) {
+                    alert('Por favor seleccione una familia de toxinas');
+                    return;
+                }
+                
+                const familyButtonText = exportFamilyBtn.querySelector('.button-text');
+                const familyLoadingText = exportFamilyBtn.querySelector('.loading-text');
+                
+                exportFamilyBtn.disabled = true;
+                familyButtonText.style.display = 'none';
+                familyLoadingText.style.display = 'inline';
+                
+                try {
+                    const longValue = longInput.value;
+                    const distValue = distInput.value;
+                    const granularity = granularityToggle.checked ? 'atom' : 'CA';
+                    
+                    // Mapeo de familias mejorado
+                    const familyNames = {
+                        'μ-TRTX-H': 'Mu_TRTX_H_terminacion_2a',
+                        'μ-TRTX-C': 'Mu_TRTX_C_terminacion_2b',
+                        'β-TRTX': 'Beta_TRTX',
+                        'ω-TRTX': 'Omega_TRTX',
+                        'δ-TRTX': 'Delta_TRTX'
+                    };
+                    
+                    const familyName = familyNames[selectedFamily] || selectedFamily.replace(/[^\w]/g, '_');
+                    const filename = `Dataset_${familyName}_IC50_Topologia_${granularity}.csv`;
+                    
+                    const url = `/export_family_csv/${encodeURIComponent(selectedFamily)}?long=${longValue}&threshold=${distValue}&granularity=${granularity}`;
+                    
+                    console.log('🚀 Descargando familia:', selectedFamily);
+                    console.log('📁 URL:', url);
+                    
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Mostrar mensaje informativo
+                    setTimeout(() => {
+                        alert(`¡Dataset de ${selectedFamily} generado exitosamente!\n\nEl archivo contiene:\n• Métricas topológicas completas\n• Valores IC₅₀ normalizados\n• Subfamilias correctamente diferenciadas\n• Datos ordenados por toxina y posición\n\nPerfecto para análisis estructura-actividad.`);
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('❌ Error:', error);
+                    alert('Error al generar el dataset familiar: ' + error.message);
+                } finally {
+                    setTimeout(() => {
+                        exportFamilyBtn.disabled = familySelector.value === '';
+                        familyButtonText.style.display = 'inline';
+                        familyLoadingText.style.display = 'none';
+                    }, 4000); // Más tiempo para procesamiento de familias
+                }
+            });
+        }
     }
-
     // Llamar setupExportButton DENTRO del scope donde están definidas las variables
     setupExportButton();
 

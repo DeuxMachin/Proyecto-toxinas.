@@ -185,11 +185,31 @@
             <div class="analysis-section">
                 <h5>Exportar Datos Completos</h5>
                 <div class="export-controls">
+                    <!-- Exportación individual -->
                     <button id="export-csv-btn" class="export-button">
-                        <span class="button-text">📊 Descargar CSV de Todos los Residuos</span>
+                        <span class="button-text">📊 Descargar CSV de Residuos Individuales</span>
                         <span class="loading-text" style="display: none;">⏳ Calculando...</span>
                     </button>
-                    <p class="export-info">Descarga un archivo CSV con las métricas de centralidad de todos los residuos</p>
+                    <p class="export-info">Descarga un archivo CSV con las métricas de centralidad de la toxina actual</p>
+                    
+                    <!-- Nueva funcionalidad: Exportación por familias -->
+                    <div class="family-export-section">
+                        <h6>Análisis por Familias de Toxinas</h6>
+                        <select id="family-selector" class="family-selector">
+                            <option value="">Seleccionar familia...</option>
+                            <option value="μ-TRTX-Hh2a">μ-TRTX-Hh2a (Familia Hh2a)</option>
+                            <option value="μ-TRTX-Hhn2b">μ-TRTX-Hhn2b (Familia Hhn2b)</option>
+
+                            <option value="β-TRTX">β-TRTX (Familia Beta)</option>
+                            <option value="ω-TRTX">ω-TRTX (Familia Omega)</option>
+                        </select>
+                        
+                        <button id="export-family-csv-btn" class="export-button family-export-btn" disabled>
+                            <span class="button-text">📈 Descargar Dataset Familia Completa + IC₅₀</span>
+                            <span class="loading-text" style="display: none;">⏳ Procesando familia...</span>
+                        </button>
+                        <p class="export-info">Descarga dataset completo con métricas topológicas y valores IC₅₀ para análisis estructura-actividad</p>
+                    </div>
                 </div>
             </div>
 

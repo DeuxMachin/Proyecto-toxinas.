@@ -7,7 +7,8 @@ import sys
 import io
 import csv
 import numpy as np
-
+import re
+import unicodedata
 from graphein.protein.config import ProteinGraphConfig
 from graphein.protein.graphs import construct_graph
 from graphein.protein.edges.distance import add_distance_threshold
@@ -18,6 +19,7 @@ from graphein.protein.edges.atomic import add_atomic_edges, add_bond_order
 from graphein.protein.edges.distance import add_k_nn_edges
 from plotly.utils import PlotlyJSONEncoder
 import networkx as nx
+from flask import Response
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'graphs'))
 from graphs.graph_analysis2D import Nav17ToxinGraphAnalyzer
@@ -316,6 +318,32 @@ def get_protein_graph(source, pid):
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+
+@viewer_bp.route("/get_toxin_name/<string:source>/<int:pid>")
+def get_toxin_name(source, pid):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        if source == "toxinas":
+            cursor.execute("SELECT name FROM Peptides WHERE peptide_id = ?", (pid,))
+        elif source == "nav1_7":
+            cursor.execute("SELECT peptide_code FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+        else:
+            conn.close()
+            return jsonify({"error": "Invalid source"}), 400
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return jsonify({"toxin_name": result[0]})
+        else:
+            return jsonify({"toxin_name": f"{source}_{pid}"})
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @viewer_bp.route("/export_residues_csv/<string:source>/<int:pid>")
 def export_residues_csv(source, pid):
     try:
@@ -324,25 +352,62 @@ def export_residues_csv(source, pid):
         distance_threshold = float(request.args.get('threshold', 10.0))
         granularity = request.args.get('granularity', 'CA')
         
-        # Obtener datos PDB
+        # Obtener datos PDB, nombre de la toxina e IC50
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
+        toxin_name = None
+        ic50_value = None
+        ic50_unit = None
+        
         if source == "toxinas":
-            cursor.execute("SELECT pdb_file FROM Peptides WHERE peptide_id = ?", (pid,))
+            cursor.execute("SELECT pdb_file, name FROM Peptides WHERE peptide_id = ?", (pid,))
+            result = cursor.fetchone()
+            if result:
+                pdb_data, toxin_name = result
         elif source == "nav1_7":
-            cursor.execute("SELECT pdb_blob FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+            cursor.execute("SELECT pdb_blob, peptide_code, ic50_value, ic50_unit FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+            result = cursor.fetchone()
+            if result:
+                pdb_data, toxin_name, ic50_value, ic50_unit = result
         else:
+            conn.close()
             return jsonify({"error": "Invalid source"}), 400
         
-        result = cursor.fetchone()
         conn.close()
         
         if not result:
             return jsonify({"error": "PDB not found"}), 404
         
-        pdb_data = result[0]
-
+        # Si no tenemos nombre, usar un fallback
+        if not toxin_name:
+            toxin_name = f"{source}_{pid}"
+        
+        # Limpiar el nombre para uso en archivo
+        import re
+        import unicodedata
+        
+        # Normalizar caracteres Unicode
+        normalized_name = unicodedata.normalize('NFKD', toxin_name)
+        
+        # Convertir caracteres especiales griegos a ASCII
+        char_replacements = {
+            'μ': 'u', 'β': 'b', 'ω': 'w', 'α': 'a', 'γ': 'g', 'δ': 'd',
+            'ε': 'e', 'ζ': 'z', 'η': 'h', 'θ': 't', 'ι': 'i', 'κ': 'k',
+            'λ': 'l', 'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p', 'ρ': 'r',
+            'σ': 's', 'τ': 't', 'υ': 'u', 'φ': 'f', 'χ': 'c', 'ψ': 'p', 'ω': 'w'
+        }
+        
+        clean_name = normalized_name
+        for greek, ascii_char in char_replacements.items():
+            clean_name = clean_name.replace(greek, ascii_char)
+        
+        # Remover cualquier carácter que no sea ASCII alfanumérico, guión o guión bajo
+        clean_name = re.sub(r'[^\w\-_]', '', clean_name, flags=re.ASCII)
+        
+        if not clean_name:
+            clean_name = f"{source}_{pid}"
+        
         # Crear archivo temporal
         with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as temp_file:
             if isinstance(pdb_data, bytes):
@@ -362,7 +427,7 @@ def export_residues_csv(source, pid):
                                 threshold=distance_threshold)
                     ]
                 )
-            else:  
+            else:
                 cfg = ProteinGraphConfig(
                     granularity="CA",
                     edge_construction_functions=[
@@ -374,7 +439,7 @@ def export_residues_csv(source, pid):
             
             G = construct_graph(config=cfg, pdb_code=None, path=temp_path)
             
-            # Calcular métricas de centralidad para todos los residuos
+            # Calcular métricas de centralidad principales
             degree_centrality = nx.degree_centrality(G)
             betweenness_centrality = nx.betweenness_centrality(G)
             closeness_centrality = nx.closeness_centrality(G)
@@ -382,46 +447,56 @@ def export_residues_csv(source, pid):
             
             # Preparar datos para CSV
             csv_data = []
-
-            for node, data in G.nodes(data=True):
-                if granularity == 'CA':
-                    
-                    parts = str(node).split(':')
-                    if len(parts) >= 3:
-                        chain = parts[0]
-                        residue_name = parts[1]
-                        residue_number = parts[2]
-                    else:
-                        chain = data.get('chain_id', 'A')
-                        residue_name = data.get('residue_name', 'UNK')
-                        residue_number = str(node)
-                else:  # granularity == 'atom'
-                    # node es un entero; los datos están en el diccionario
-                    chain = data.get('chain_id', 'A')
-                    residue_name = data.get('residue_name', 'UNK')
-                    residue_number = str(data.get('residue_number', node))
-
+            
+            # Normalizar IC50 a unidades consistentes (nM)
+            ic50_nm = None
+            if ic50_value and ic50_unit:
+                if ic50_unit.lower() == "nm":
+                    ic50_nm = ic50_value
+                elif ic50_unit.lower() == "μm" or ic50_unit.lower() == "um":
+                    ic50_nm = ic50_value * 1000
+                elif ic50_unit.lower() == "mm":
+                    ic50_nm = ic50_value * 1000000
+                else:
+                    ic50_nm = ic50_value
+            
+            for node in G.nodes():
+                # Procesar ID del nodo
+                parts = str(node).split(':')
+                if len(parts) >= 3:
+                    chain = parts[0]
+                    residue_name = parts[1]
+                    residue_number = parts[2]
+                else:
+                    chain = "A"
+                    residue_name = "UNK"
+                    residue_number = str(node)
+                
                 csv_data.append({
+                    'Toxina': toxin_name,
                     'Cadena': chain,
-                    'Nombre_Residuo': residue_name,
-                    'Numero_Residuo': residue_number,
+                    'Residuo_Nombre': residue_name,
+                    'Residuo_Numero': residue_number,
+                    'IC50_Original': ic50_value,
+                    'IC50_Unidad': ic50_unit,
+                    'IC50_nM': round(ic50_nm, 3) if ic50_nm else None,
                     'Centralidad_Grado': round(degree_centrality.get(node, 0), 6),
                     'Centralidad_Intermediacion': round(betweenness_centrality.get(node, 0), 6),
                     'Centralidad_Cercania': round(closeness_centrality.get(node, 0), 6),
-                    'Coeficiente_Agrupamiento': round(clustering_coefficient.get(node, 0), 6)
+                    'Coeficiente_Agrupamiento': round(clustering_coefficient.get(node, 0), 6),
+                    'Grado_Nodo': G.degree(node)
                 })
-
-
             
             # Ordenar por centralidad de grado (descendente)
             csv_data.sort(key=lambda x: x['Centralidad_Grado'], reverse=True)
             
-        
             
             output = io.StringIO()
-            fieldnames = ['Residuo_ID', 'Cadena', 'Nombre_Residuo', 'Numero_Residuo', 
+            fieldnames = ['Toxina', 'Cadena', 'Residuo_Nombre', 'Residuo_Numero', 
+                         'IC50_Original', 'IC50_Unidad', 'IC50_nM',
                          'Centralidad_Grado', 'Centralidad_Intermediacion', 
-                         'Centralidad_Cercania', 'Coeficiente_Agrupamiento']
+                         'Centralidad_Cercania', 'Coeficiente_Agrupamiento',
+                         'Grado_Nodo']
             
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()
@@ -430,26 +505,256 @@ def export_residues_csv(source, pid):
             csv_content = output.getvalue()
             output.close()
             
-            # Retornar CSV como respuesta
-            from flask import Response
-            filename = f"residuos_metricas_{source}_{pid}_{granularity}.csv"
+            # Crear nombre de archivo descriptivo
+            if source == "nav1_7":
+                filename = f"Nav1.7-{clean_name}.csv"
+            else:
+                filename = f"Toxinas-{clean_name}.csv"
             
+            safe_filename = filename.encode('ascii', 'ignore').decode('ascii')
+            
+            from flask import Response
             return Response(
                 csv_content,
                 mimetype="text/csv",
-                headers={"Content-disposition": f"attachment; filename={filename}"}
+                headers={"Content-disposition": f"attachment; filename={safe_filename}"}
             )
             
         finally:
-            # Limpiar archivo temporal
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
+            os.unlink(temp_path)
                 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@viewer_bp.route("/export_family_csv/<string:family_prefix>")
+def export_family_csv(family_prefix):
+    try:
+        print(f"🚀 INICIANDO exportación de familia {family_prefix}")
+        
+        # Obtener parámetros
+        long_threshold = int(request.args.get('long', 5))
+        distance_threshold = float(request.args.get('threshold', 10.0))
+        granularity = request.args.get('granularity', 'CA')
+        
+        print(f"📋 Parámetros: long={long_threshold}, threshold={distance_threshold}, granularity={granularity}")
+        
+        # Obtener todas las toxinas de la familia seleccionada
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Buscar toxinas que empiecen con el prefijo de familia
+        cursor.execute("""
+            SELECT id, peptide_code, ic50_value, ic50_unit 
+            FROM Nav1_7_InhibitorPeptides 
+            WHERE peptide_code LIKE ?
+            ORDER BY peptide_code
+        """, (f"{family_prefix}%",))
+        
+        family_toxins = cursor.fetchall()
+        conn.close()
+        
+        if not family_toxins:
+            print(f"❌ No se encontraron toxinas para la familia {family_prefix}")
+            return jsonify({"error": f"No se encontraron toxinas para la familia {family_prefix}"}), 404
+        
+        print(f"🧬 Procesando familia {family_prefix}: {len(family_toxins)} toxinas encontradas")
+        
+        # Dataset completo que contendrá todos los residuos de todas las toxinas
+        complete_dataset = []
+        processed_count = 0
+        
+        for toxin_id, peptide_code, ic50_value, ic50_unit in family_toxins:
+            print(f"  📊 Procesando {peptide_code} (IC₅₀: {ic50_value} {ic50_unit})")
+            
+            try:
+                # Obtener datos PDB
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("SELECT pdb_blob FROM Nav1_7_InhibitorPeptides WHERE id = ?", (toxin_id,))
+                result = cursor.fetchone()
+                conn.close()
+                
+                if not result or not result[0]:
+                    print(f"    ⚠️ Sin datos PDB para {peptide_code}")
+                    continue
+                
+                pdb_data = result[0]
+                print(f"    ✅ PDB obtenido para {peptide_code} ({len(pdb_data)} bytes)")
+                
+                # Crear archivo temporal
+                with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as temp_file:
+                    if isinstance(pdb_data, bytes):
+                        temp_file.write(pdb_data)
+                    else:
+                        temp_file.write(pdb_data.encode('utf-8'))
+                    temp_path = temp_file.name
+                
+                print(f"    📄 Archivo temporal creado: {temp_path}")
+                
+                try:
+                    # Construir grafo
+                    if granularity == 'atom':
+                        cfg = ProteinGraphConfig(
+                            granularity="atom",
+                            edge_construction_functions=[
+                                partial(add_distance_threshold,
+                                        long_interaction_threshold=long_threshold,
+                                        threshold=distance_threshold)
+                            ]
+                        )
+                    else:
+                        cfg = ProteinGraphConfig(
+                            granularity="CA",
+                            edge_construction_functions=[
+                                partial(add_distance_threshold,
+                                        long_interaction_threshold=long_threshold,
+                                        threshold=distance_threshold)
+                            ]
+                        )
+                    
+                    print(f"    🔗 Construyendo grafo para {peptide_code}...")
+                    G = construct_graph(config=cfg, pdb_code=None, path=temp_path)
+                    print(f"    ✅ Grafo construido: {G.number_of_nodes()} nodos, {G.number_of_edges()} aristas")
+                    
+                    # Calcular métricas de centralidad principales
+                    print(f"    📊 Calculando métricas de centralidad...")
+                    degree_centrality = nx.degree_centrality(G)
+                    betweenness_centrality = nx.betweenness_centrality(G)
+                    closeness_centrality = nx.closeness_centrality(G)
+                    clustering_coefficient = nx.clustering(G)
+                    
+                    print(f"    ✅ Métricas calculadas para {peptide_code}")
+                    
+                    # Normalizar IC50 a unidades consistentes (nM)
+                    ic50_nm = None
+                    if ic50_value and ic50_unit:
+                        if ic50_unit.lower() == "nm":
+                            ic50_nm = ic50_value
+                        elif ic50_unit.lower() == "μm" or ic50_unit.lower() == "um":
+                            ic50_nm = ic50_value * 1000
+                        elif ic50_unit.lower() == "mm":
+                            ic50_nm = ic50_value * 1000000
+                        else:
+                            ic50_nm = ic50_value
+                    
+                    print(f"    💊 IC50 normalizado: {ic50_nm} nM")
+                    
+                    # Procesar cada nodo/residuo
+                    node_count = 0
+                    for node, data in G.nodes(data=True):
+                        if granularity == 'CA':
+                            parts = str(node).split(':')
+                            if len(parts) >= 3:
+                                chain = parts[0]
+                                residue_name = parts[1]
+                                residue_number = parts[2]
+                            else:
+                                chain = data.get('chain_id', 'A')
+                                residue_name = data.get('residue_name', 'UNK')
+                                residue_number = str(node)
+                        else:  # atom level
+                            chain = data.get('chain_id', 'A')
+                            residue_name = data.get('residue_name', 'UNK')
+                            residue_number = str(data.get('residue_number', node))
+                        
+                        complete_dataset.append({
+                            # Identificadores básicos
+                            'Familia': family_prefix,
+                            'Toxina': peptide_code,
+                            'Cadena': chain,
+                            'Residuo_Nombre': residue_name,
+                            'Residuo_Numero': residue_number,
+                            
+                            # Actividad farmacológica
+                            'IC50_Original': ic50_value,
+                            'IC50_Unidad': ic50_unit,
+                            'IC50_nM': round(ic50_nm, 3) if ic50_nm else None,
+                            
+                            # Métricas de centralidad principales
+                            'Centralidad_Grado': round(degree_centrality.get(node, 0), 6),
+                            'Centralidad_Intermediacion': round(betweenness_centrality.get(node, 0), 6),
+                            'Centralidad_Cercania': round(closeness_centrality.get(node, 0), 6),
+                            'Coeficiente_Agrupamiento': round(clustering_coefficient.get(node, 0), 6),
+                            
+                            # Propiedades del residuo individual
+                            'Grado_Nodo': G.degree(node)
+                        })
+                        node_count += 1
+                    
+                    print(f"    ✅ Procesados {node_count} residuos de {peptide_code}")
+                    processed_count += 1
+                        
+                finally:
+                    os.unlink(temp_path)
+                    print(f"    🗑️ Archivo temporal eliminado")
+                    
+            except Exception as e:
+                print(f"    ❌ Error procesando {peptide_code}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        if not complete_dataset:
+            print(f"❌ No se pudieron procesar toxinas de la familia")
+            return jsonify({"error": "No se pudieron procesar toxinas de la familia"}), 500
+        
+        print(f"📊 RESUMEN: Procesadas {processed_count}/{len(family_toxins)} toxinas")
+        print(f"📊 Total de residuos en dataset: {len(complete_dataset)}")
+        
+        # Ordenar dataset por toxina y número de residuo
+        print(f"🔄 Ordenando dataset...")
+        complete_dataset.sort(key=lambda x: (x['Toxina'], int(x['Residuo_Numero']) if x['Residuo_Numero'].isdigit() else 0))
+        
+        # Crear CSV con dataset simplificado 
+        print(f"📝 Generando CSV...")
+        output = io.StringIO()
+        fieldnames = [
+            # Identificadores
+            'Familia', 'Toxina', 'Cadena', 'Residuo_Nombre', 'Residuo_Numero',
+            # Actividad farmacológica
+            'IC50_Original', 'IC50_Unidad', 'IC50_nM',
+            # Métricas de centralidad
+            'Centralidad_Grado', 'Centralidad_Intermediacion', 'Centralidad_Cercania', 'Coeficiente_Agrupamiento',
+            # Propiedades del residuo
+            'Grado_Nodo'
+        ]
+        
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(complete_dataset)
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Crear nombre descriptivo del archivo
+        family_names = {
+            'μ': 'Mu-TRTX',
+            'β': 'Beta-TRTX', 
+            'ω': 'Omega-TRTX',
+            
+        }
+        
+        family_name = family_names.get(family_prefix, f"{family_prefix}-TRTX")
+        filename = f"Dataset_Familia_{family_name}_IC50_Topologia_{granularity}.csv"
+        safe_filename = filename.encode('ascii', 'ignore').decode('ascii')
+        
+        print(f"✅ Dataset completo generado: {len(complete_dataset)} residuos de {len(set(row['Toxina'] for row in complete_dataset))} toxinas")
+        print(f"📁 Nombre de archivo: {safe_filename}")
+        print(f"📤 Enviando archivo CSV al navegador...")
+        
+        from flask import Response
+        return Response(
+            csv_content,
+            mimetype="text/csv",
+            headers={"Content-disposition": f"attachment; filename={safe_filename}"}
+        )
+        
+    except Exception as e:
+        print(f"💥 Error generando dataset familiar: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    
 def convert_numpy_to_lists(obj):
     """Convierte recursivamente arrays de NumPy a listas Python para serialización JSON."""
     if isinstance(obj, np.ndarray):
