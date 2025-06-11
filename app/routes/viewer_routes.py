@@ -766,3 +766,52 @@ def convert_numpy_to_lists(obj):
     else:
         return obj
 
+@viewer_bp.route("/calculate_dipole", methods=['POST'])
+def calculate_dipole():
+    """Calculate dipole moment from uploaded PDB and PSF files"""
+    try:
+        # Get uploaded files from request
+        if 'pdb_file' not in request.files:
+            return jsonify({"error": "No PDB file provided"}), 400
+        
+        pdb_file = request.files['pdb_file']
+        psf_file = request.files.get('psf_file')  # PSF is optional
+        
+        if pdb_file.filename == '':
+            return jsonify({"error": "No PDB file selected"}), 400
+        
+        # Save files temporarily
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as pdb_temp:
+            pdb_file.save(pdb_temp.name)
+            pdb_path = pdb_temp.name
+        
+        psf_path = None
+        if psf_file and psf_file.filename != '':
+            with tempfile.NamedTemporaryFile(suffix='.psf', delete=False) as psf_temp:
+                psf_file.save(psf_temp.name)
+                psf_path = psf_temp.name
+        
+        try:
+            # Calculate dipole using your existing analyzer
+            dipole_data = toxin_analyzer.calculate_dipole_moment_with_psf(pdb_path, psf_path)
+            
+            return jsonify({
+                'success': True,
+                'dipole': dipole_data
+            })
+            
+        finally:
+            # Clean up temporary files
+            import os
+            os.unlink(pdb_path)
+            if psf_path:
+                os.unlink(psf_path)
+                
+    except Exception as e:
+        print(f"Error calculating dipole: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

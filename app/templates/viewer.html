@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dash-html-components@2.0.0/dash_html_components.min.css">
     <!-- Plotly for visualization -->
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- Add py3Dmol for molecular visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js"></script>
     <!-- Tus estilos personalizados -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
 </head>
@@ -30,6 +32,43 @@
         </div>
     </div>
 
+    <!-- New file upload section -->
+    <div class="controls-container">
+        <div class="control-group">
+            <label>📁 Cargar archivos locales:</label>
+            <div style="display: flex; gap: 10px;">
+                <div>
+                    <input type="file" id="pdb-file-input" accept=".pdb" style="display: none;">
+                    <button id="load-pdb-btn" class="btn btn-secondary">
+                        <i class="fas fa-upload"></i> Cargar PDB
+                    </button>
+                </div>
+                <div>
+                    <input type="file" id="psf-file-input" accept=".psf" style="display: none;">
+                    <button id="load-psf-btn" class="btn btn-secondary">
+                        <i class="fas fa-upload"></i> Cargar PSF
+                    </button>
+                </div>
+                <div>
+                    <button id="toggle-dipole" class="btn btn-info" disabled>
+                        <i class="fas fa-arrow-up"></i> Mostrar Dipolo
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dipole info display -->
+        <div id="dipole-info" class="control-group" style="display: none;">
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #dee2e6;">
+                <small><strong>Vector Dipolo:</strong></small><br>
+                <small>Magnitud: <span id="dipole-magnitude">-</span> D</small><br>
+                <small>Dirección: <span id="dipole-direction">-</span></small>
+                <div id="dipole-coordinates" style="margin-top: 10px; font-size: 11px; color: #666;">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="tab-buttons">
         <div class="tab-button active" data-tab="structure-view">Estructura 3D</div>
         <div class="tab-button" data-tab="graph-view">Análisis de Grafo</div>
@@ -38,6 +77,17 @@
     <div class="visualization-container">
         <div id="structure-view" class="tab-content active">
             <div id="viewer"></div>
+            <!-- Keep existing Plotly dipole viewer -->
+            <div id="plotly-dipole-viewer" style="width: 100%; height: 600px; display: none; border: 1px solid #ccc;"></div>
+            <!-- Add new py3Dmol viewer -->
+            <div id="py3dmol-dipole-viewer" style="width: 100%; height: 600px; display: none; border: 1px solid #ccc; background: white;">
+                <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
+                <div style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 5px; font-size: 12px;">
+                    <strong>🧬 py3Dmol Visualization</strong><br>
+                    🔴 Red Arrow: Dipole Vector<br>
+                    🔵 Protein: Cartoon representation
+                </div>
+            </div>
         </div>
         
         <div id="graph-view" class="tab-content">

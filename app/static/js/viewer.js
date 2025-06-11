@@ -1,4 +1,3 @@
-
 document.addEventListener("DOMContentLoaded", async () => {
     //Extremos los datos de la proteina 
     const proteinData = JSON.parse(document.getElementById("protein-data").textContent);
@@ -121,4 +120,115 @@ document.addEventListener("DOMContentLoaded", async () => {
             loadPDB("toxinas", firstId);
         }
     }, 100);
+
+    // File upload handlers
+    setupFileUploadHandlers();
+
+    function setupFileUploadHandlers() {
+        const pdbFileInput = document.getElementById('pdb-file-input');
+        const psfFileInput = document.getElementById('psf-file-input');
+        const loadPdbBtn = document.getElementById('load-pdb-btn');
+        const loadPsfBtn = document.getElementById('load-psf-btn');
+        const toggleDipoleBtn = document.getElementById('toggle-dipole');
+
+        let dipoleVisible = false;
+
+        // PDB file upload
+        loadPdbBtn.addEventListener('click', () => {
+            pdbFileInput.click();
+        });
+
+        pdbFileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                try {
+                    loadPdbBtn.textContent = '⏳ Cargando...';
+                    await window.molstarAnalyzer.loadLocalPDB(file);
+                    loadPdbBtn.innerHTML = '<i class="fas fa-check"></i> PDB Cargado';
+                    loadPdbBtn.style.background = '#28a745';
+                    
+                    // Enable PSF loading
+                    loadPsfBtn.disabled = false;
+                    
+                } catch (error) {
+                    alert('Error cargando PDB: ' + error.message);
+                    loadPdbBtn.innerHTML = '<i class="fas fa-upload"></i> Cargar PDB';
+                    loadPdbBtn.style.background = '';
+                }
+            }
+        });
+
+        // PSF file upload
+        loadPsfBtn.addEventListener('click', () => {
+            psfFileInput.click();
+        });
+
+        psfFileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                try {
+                    await window.molstarAnalyzer.loadLocalPSF(file);
+                    loadPsfBtn.innerHTML = '<i class="fas fa-check"></i> PSF Cargado';
+                    loadPsfBtn.style.background = '#28a745';
+                    
+                    // Enable dipole calculation
+                    toggleDipoleBtn.disabled = false;
+                    
+                } catch (error) {
+                    alert('Error cargando PSF: ' + error.message);
+                }
+            }
+        });
+
+        // Dipole toggle
+        toggleDipoleBtn.addEventListener('click', async () => {
+            try {
+                if (!dipoleVisible) {
+                    toggleDipoleBtn.textContent = '⏳ Calculando...';
+                    
+                    const dipoleData = await window.molstarAnalyzer.calculateAndShowDipole();
+                    
+                    // Try py3Dmol first (best for molecular visualization)
+                    try {
+                        await window.molstarAnalyzer.showDipoleInPy3Dmol(dipoleData);
+                        console.log("Using py3Dmol visualization for dipole");
+                    } catch (py3dmolError) {
+                        console.log("py3Dmol failed, trying Plotly visualization");
+                        try {
+                            await window.molstarAnalyzer.showDipoleInPlotly(dipoleData);
+                        } catch (plotlyError) {
+                            console.log("Both py3Dmol and Plotly failed, trying Mol* visualization");
+                            try {
+                                await window.molstarAnalyzer.visualizeDipoleVector(dipoleData);
+                            } catch (molstarError) {
+                                console.log("All visualizations failed, showing info only");
+                                window.molstarAnalyzer.showDipoleInfo(dipoleData);
+                            }
+                        }
+                    }
+                    
+                    // Update UI with dipole info
+                    document.getElementById('dipole-magnitude').textContent = 
+                        dipoleData.magnitude.toFixed(3);
+                    document.getElementById('dipole-direction').textContent = 
+                        `[${dipoleData.normalized.map(x => x.toFixed(3)).join(', ')}]`;
+                    document.getElementById('dipole-info').style.display = 'block';
+                    
+                    toggleDipoleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ocultar Dipolo';
+                    dipoleVisible = true;
+                    
+                } else {
+                    await window.molstarAnalyzer.removeDipoleVector();
+                    document.getElementById('dipole-info').style.display = 'none';
+                    toggleDipoleBtn.innerHTML = '<i class="fas fa-arrow-up"></i> Mostrar Dipolo';
+                    dipoleVisible = false;
+                }
+                
+            } catch (error) {
+                alert('Error con vector dipolo: ' + error.message);
+                toggleDipoleBtn.innerHTML = '<i class="fas fa-arrow-up"></i> Mostrar Dipolo';
+                console.error('Dipole error details:', error);
+            }
+        });
+    }
 });

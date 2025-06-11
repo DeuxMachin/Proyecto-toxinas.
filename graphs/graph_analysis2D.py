@@ -153,6 +153,93 @@ class Nav17ToxinGraphAnalyzer:
             'normalized': dipole_norm
         }
     
+    def calculate_dipole_moment_with_psf(self, pdb_path, psf_path=None):
+        """Enhanced dipole calculation using PSF file for better charge assignment"""
+        try:
+            # Try MDAnalysis first if PSF is provided
+            if psf_path and os.path.exists(psf_path):
+                import MDAnalysis as mda
+                
+                u = mda.Universe(psf_path, pdb_path)
+                protein = u.select_atoms("protein")
+                
+                if len(protein) == 0:
+                    raise ValueError("No protein atoms found")
+                
+                # Use PSF charges directly
+                charges = protein.charges
+                positions = protein.positions
+                center_of_mass = protein.center_of_mass()
+                
+                # Calculate dipole vector
+                dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
+                
+            else:
+                # Fallback to BioPython method (your existing implementation)
+                structure = self.load_pdb_structure(pdb_path)
+                charges, positions, center_of_mass = self._extract_charges_positions(structure)
+                dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
+            
+            magnitude = np.linalg.norm(dipole_vector)
+            normalized = dipole_vector / magnitude if magnitude > 0 else np.zeros(3)
+            
+            # Scale for visualization (20 Angstroms)
+            visualization_end = center_of_mass + normalized * 20
+            
+            return {
+                'vector': dipole_vector.tolist(),
+                'magnitude': float(magnitude),
+                'normalized': normalized.tolist(),
+                'center_of_mass': center_of_mass.tolist(),
+                'end_point': visualization_end.tolist(),
+                'method': 'PSF' if psf_path else 'calculated'
+            }
+            
+        except ImportError:
+            # MDAnalysis not available, use BioPython fallback
+            return self.calculate_dipole_moment_fallback(pdb_path)
+        except Exception as e:
+            print(f"Error in dipole calculation: {str(e)}")
+            raise e
+
+    def load_pdb_structure(self, pdb_path):
+        """Load PDB structure using BioPython"""
+        from Bio.PDB import PDBParser
+        parser = PDBParser(QUIET=True)
+        return parser.get_structure("protein", pdb_path)
+
+    def _extract_charges_positions(self, structure):
+        """Extract charges and positions from BioPython structure"""
+        # Simplified charge assignment (you can improve this)
+        amino_acid_charges = {
+            'ARG': 1.0, 'LYS': 1.0, 'ASP': -1.0, 'GLU': -1.0,
+            'HIS': 0.5  # pH dependent
+        }
+        
+        charges = []
+        positions = []
+        
+        for model in structure:
+            for chain in model:
+                for residue in chain:
+                    if residue.get_resname() in amino_acid_charges:
+                        charge = amino_acid_charges[residue.get_resname()]
+                    else:
+                        charge = 0.0
+                    
+                    try:
+                        ca_atom = residue['CA']
+                        charges.append(charge)
+                        positions.append(ca_atom.get_coord())
+                    except KeyError:
+                        continue
+        
+        charges = np.array(charges)
+        positions = np.array(positions)
+        center_of_mass = np.mean(positions, axis=0)
+        
+        return charges, positions, center_of_mass
+    
     def identify_pharmacophore_residues(self, G, pharmacophore_pattern=None):
         """
         Identifica residuos que coinciden con patrón farmacofórico para toxinas Nav1.7

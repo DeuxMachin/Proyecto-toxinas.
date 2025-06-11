@@ -498,3 +498,45 @@ input:not(:checked) + .slider .slider-text:before {
 .family-export-btn:hover:not(:disabled) {
     background: linear-gradient(135deg, #218838 0%, #1c9c85 100%);
 }
+
+/* Add to viewer.css */
+
+/* py3Dmol viewer specific styles */
+#py3dmol-dipole-viewer {
+    position: relative;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+#py3dmol-container {
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* py3Dmol info overlay */
+#py3dmol-dipole-viewer .info-overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255,255,255,0.95);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    border: 1px solid #ddd;
+    z-index: 1000;
+}
+
+/* Smooth transitions between viewers */
+.tab-content {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.tab-content:not(.active) {
+    opacity: 0;
+}
+
+.tab-content.active {
+    opacity: 1;
+}

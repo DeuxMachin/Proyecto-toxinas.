@@ -3,8 +3,14 @@ class MolstarProteinAnalyzer {
         this.plugin = plugin;
         this.currentStructure = null;
         this.currentData = null;
-        this.lastStructureData = null; // Guardar datos de la última estructura
+        this.lastStructureData = null;
+        this.dipoleShape = null;
+        this.loadedFiles = {
+            pdb: null,
+            psf: null
+        };
     }
+
     // Metodo principal para analizar la estructura actual
     async analyzeCurrentStructure() {
         try {
@@ -455,6 +461,697 @@ class MolstarProteinAnalyzer {
         
         const maxEntry = entries.reduce((a, b) => a[1] > b[1] ? a : b);
         return `${maxEntry[0]} (valor: ${maxEntry[1].toFixed(4)})`;
+    }
+
+    /**
+     * Load PDB file from local upload - using same pattern as viewer.js
+     */
+    async loadLocalPDB(file) {
+        try {
+            const pdbText = await this.readFileAsText(file);
+            
+            // Validate PDB content (same validation as viewer.js)
+            if (!pdbText || !pdbText.includes("ATOM")) {
+                throw new Error("Invalid or empty PDB file");
+            }
+            
+            // Clear existing structures (same pattern as viewer.js)
+            try {
+                await this.plugin.plugin?.clear?.();
+                await this.plugin.resetCamera?.();
+                await this.plugin.resetStructure?.();
+            } catch (clearError) {
+                // Ignore clearing errors, just like in viewer.js
+            }
+            
+            // Create blob and load structure (exact same pattern as viewer.js)
+            const blob = new Blob([pdbText], { type: 'chemical/x-pdb' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            try {
+                // Use the exact same loading method as viewer.js
+                await this.plugin.loadStructureFromUrl(blobUrl, 'pdb');
+                
+                // Store the loaded file reference
+                this.loadedFiles.pdb = file;
+                
+                console.log("PDB loaded successfully from local file");
+                return true;
+                
+            } finally {
+                // Clean up the blob URL (same as viewer.js)
+                URL.revokeObjectURL(blobUrl);
+            }
+            
+        } catch (error) {
+            console.error("Error loading local PDB:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Simplified clear method - just like viewer.js
+     */
+    async clearExistingStructures() {
+        try {
+            await this.plugin.plugin?.clear?.();
+            await this.plugin.resetCamera?.();
+            await this.plugin.resetStructure?.();
+        } catch (error) {
+            // Ignore errors, just like in viewer.js
+        }
+    }
+
+    /**
+     * Store PSF file for dipole calculation
+     */
+    async loadLocalPSF(file) {
+        this.loadedFiles.psf = file;
+        console.log("PSF file loaded for dipole calculation");
+        return true;
+    }
+
+    /**
+     * Calculate and display dipole vector
+     */
+    async calculateAndShowDipole() {
+        if (!this.loadedFiles.pdb) {
+            throw new Error("No PDB file loaded");
+        }
+
+        try {
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('pdb_file', this.loadedFiles.pdb);
+            
+            if (this.loadedFiles.psf) {
+                formData.append('psf_file', this.loadedFiles.psf);
+            }
+
+            // Send to backend for calculation
+            const response = await fetch('/calculate_dipole', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Unknown error calculating dipole');
+            }
+
+            // Visualize dipole vector
+            await this.visualizeDipoleVector(data.dipole);
+            
+            return data.dipole;
+
+        } catch (error) {
+            console.error("Error calculating dipole:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create visual representation of dipole vector using Mol* shapes
+     */
+    async visualizeDipoleVector(dipoleData) {
+        try {
+            // Remove existing dipole if present
+            await this.removeDipoleVector();
+
+            // Create dipole visualization using a simpler approach
+            await this.createDipoleArrow(dipoleData);
+            
+            console.log("Dipole vector visualized successfully");
+            
+        } catch (error) {
+            console.error("Error visualizing dipole:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create dipole arrow using Mol* shape API
+     */
+    async createDipoleArrow(dipoleData) {
+        try {
+            const { Shape, Color } = molstar.Viewer.Toolkit.Math;
+            const { Vec3 } = molstar.Viewer.Toolkit.Math;
+            
+            // Convert coordinates to Vec3
+            const start = Vec3.create(
+                dipoleData.center_of_mass[0], 
+                dipoleData.center_of_mass[1], 
+                dipoleData.center_of_mass[2]
+            );
+            
+            const end = Vec3.create(
+                dipoleData.end_point[0], 
+                dipoleData.end_point[1], 
+                dipoleData.end_point[2]
+            );
+            
+            // Create shape builder
+            const builder = this.plugin.builders.structure.shape;
+            
+            // Create shape data
+            const shapeData = Shape.create();
+            
+            // Add cylinder for the arrow shaft
+            const direction = Vec3.sub(Vec3.create(), end, start);
+            const length = Vec3.magnitude(direction);
+            Vec3.normalize(direction, direction);
+            
+            // Create cylinder geometry
+            shapeData.add(Shape.Sphere(start, 1.0), Color.fromRgb(255, 0, 0));
+            
+            // Add multiple spheres to create arrow effect
+            const steps = 10;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const point = Vec3.create();
+                Vec3.scaleAndAdd(point, start, direction, length * t);
+                
+                // Make it thicker at the base and thinner at the tip
+                const radius = 0.5 * (1 - t * 0.7);
+                shapeData.add(Shape.Sphere(point, radius), Color.fromRgb(255, 0, 0));
+            }
+            
+            // Add arrowhead
+            const arrowTip = Vec3.create();
+            Vec3.scaleAndAdd(arrowTip, start, direction, length);
+            shapeData.add(Shape.Sphere(arrowTip, 1.5), Color.fromRgb(200, 0, 0));
+            
+            // Build and add to scene
+            const shape = await builder.create(shapeData, {
+                label: 'Dipole Vector'
+            });
+            
+            this.dipoleShape = shape;
+            
+        } catch (error) {
+            console.error("Error creating dipole arrow:", error);
+            // Try alternative approach
+            await this.createSimpleDipolePoints(dipoleData);
+        }
+    }
+
+    /**
+     * Fallback method: create simple points to show dipole
+     */
+    async createSimpleDipolePoints(dipoleData) {
+        try {
+            // Create two spheres: one at center of mass, one at dipole end
+            const start = dipoleData.center_of_mass;
+            const end = dipoleData.end_point;
+            
+            // Use a very simple approach - just highlight atoms near these points
+            console.log(`Dipole vector from [${start.join(', ')}] to [${end.join(', ')}]`);
+            console.log(`Magnitude: ${dipoleData.magnitude.toFixed(3)} D`);
+            
+            // For now, just log the information - the visualization will be basic
+            this.dipoleShape = { 
+                isSimple: true, 
+                data: dipoleData,
+                message: "Dipole vector calculated - check console for coordinates"
+            };
+            
+            // You could also create custom labels in the interface
+            this.showDipoleInfo(dipoleData);
+            
+        } catch (error) {
+            console.error("Error creating simple dipole visualization:", error);
+            throw new Error("Could not create dipole visualization");
+        }
+    }
+
+    /**
+     * Show dipole information in the UI
+     */
+    showDipoleInfo(dipoleData) {
+        // Create or update dipole info display
+        const infoElement = document.getElementById('dipole-coordinates');
+        if (infoElement) {
+            infoElement.innerHTML = `
+                <strong>Dipole Vector Details:</strong><br>
+                Start (COM): [${dipoleData.center_of_mass.map(x => x.toFixed(2)).join(', ')}]<br>
+                End Point: [${dipoleData.end_point.map(x => x.toFixed(2)).join(', ')}]<br>
+                Direction: [${dipoleData.normalized.map(x => x.toFixed(3)).join(', ')}]<br>
+                Length: ${(dipoleData.magnitude * 20).toFixed(2)} Å (scaled for visualization)
+            `;
+        }
+    }
+
+    /**
+     * Remove dipole vector visualization
+     */
+    async removeDipoleVector() {
+        if (this.dipoleShape) {
+            try {
+                if (this.dipoleShape.isSimple) {
+                    // Just clear the reference for simple visualization
+                    this.dipoleShape = null;
+                    const infoElement = document.getElementById('dipole-coordinates');
+                    if (infoElement) {
+                        infoElement.innerHTML = '';
+                    }
+                } else {
+                    // Remove actual 3D shape or switch back from Plotly
+                    const plotlyViewer = document.getElementById('plotly-dipole-viewer');
+                    const py3dmolViewer = document.getElementById('py3dmol-dipole-viewer');
+                    
+                    if (plotlyViewer && plotlyViewer.style.display !== 'none') {
+                        this.switchBackToMolstar();
+                    } else if (py3dmolViewer && py3dmolViewer.style.display !== 'none') {
+                        this.switchBackToMolstar();
+                    } else {
+                        await this.plugin.managers.structure.hierarchy.remove([this.dipoleShape.ref]);
+                    }
+                    this.dipoleShape = null;
+                }
+                console.log("Dipole vector removed");
+            } catch (error) {
+                console.error("Error removing dipole vector:", error);
+                // Reset reference anyway and switch back
+                this.dipoleShape = null;
+                this.switchBackToMolstar();
+            }
+        }
+    }
+
+    /**
+     * Alternative: Show dipole in Plotly 3D visualization
+     */
+    async showDipoleInPlotly(dipoleData) {
+        try {
+            console.log("Creating Plotly visualization with dipole vector");
+            
+            // Get structure data
+            const pdbText = await this.readFileAsText(this.loadedFiles.pdb);
+            const structureData = this.parsePDBForPlotly(pdbText);
+            
+            // Create Plotly 3D visualization
+            const traces = [
+                // Protein atoms
+                {
+                    x: structureData.x,
+                    y: structureData.y,
+                    z: structureData.z,
+                    mode: 'markers',
+                    marker: {
+                        size: 4,
+                        color: structureData.colors,
+                        opacity: 0.8
+                    },
+                    type: 'scatter3d',
+                    name: 'Protein',
+                    hovertemplate: 'Atom: %{text}<br>X: %{x:.2f}<br>Y: %{y:.2f}<br>Z: %{z:.2f}<extra></extra>',
+                    text: structureData.elements
+                },
+                // Dipole vector as arrow
+                {
+                    x: [dipoleData.center_of_mass[0], dipoleData.end_point[0]],
+                    y: [dipoleData.center_of_mass[1], dipoleData.end_point[1]],
+                    z: [dipoleData.center_of_mass[2], dipoleData.end_point[2]],
+                    mode: 'lines+markers',
+                    line: {
+                        color: 'red',
+                        width: 8
+                    },
+                    marker: {
+                        size: [8, 15],
+                        color: ['red', 'darkred'],
+                        symbol: ['circle', 'diamond']
+                    },
+                    type: 'scatter3d',
+                    name: `Dipole Vector (${dipoleData.magnitude.toFixed(2)} D)`,
+                    hovertemplate: 'Dipole Vector<br>Magnitude: ' + dipoleData.magnitude.toFixed(3) + ' D<extra></extra>'
+                }
+            ];
+            
+            const layout = {
+                title: {
+                    text: 'Protein Structure with Dipole Vector',
+                    font: { size: 18 }
+                },
+                scene: {
+                    xaxis: { 
+                        title: 'X (Å)',
+                        showgrid: true,
+                        zeroline: true
+                    },
+                    yaxis: { 
+                        title: 'Y (Å)',
+                        showgrid: true,
+                        zeroline: true
+                    },
+                    zaxis: { 
+                        title: 'Z (Å)',
+                        showgrid: true,
+                        zeroline: true
+                    },
+                    aspectmode: 'cube',
+                    bgcolor: 'white'
+                },
+                margin: { l: 0, r: 0, b: 0, t: 40 },
+                showlegend: true,
+                legend: {
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: 'black',
+                    borderwidth: 1
+                }
+            };
+            
+            // Get or create plot div
+            const plotDiv = this.getOrCreatePlotlyDiv();
+            
+            // Create the plot
+            Plotly.newPlot(plotDiv, traces, layout, {
+                responsive: true,
+                displayModeBar: true
+            });
+            
+            // Hide Mol* and show Plotly
+            this.switchToPlotlyView();
+            
+            console.log("Plotly visualization created successfully");
+            
+        } catch (error) {
+            console.error("Error creating Plotly visualization:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create Plotly container if it doesn't exist
+     */
+    getOrCreatePlotlyDiv() {
+        let plotDiv = document.getElementById('plotly-dipole-viewer');
+        if (!plotDiv) {
+            // Find the structure view container
+            const structureView = document.getElementById('structure-view');
+            if (structureView) {
+                plotDiv = document.createElement('div');
+                plotDiv.id = 'plotly-dipole-viewer';
+                plotDiv.style.cssText = 'width: 100%; height: 600px; display: none; border: 1px solid #ccc; background: white;';
+                structureView.appendChild(plotDiv);
+            } else {
+                // Fallback: create in visualization container
+                const container = document.querySelector('.visualization-container');
+                plotDiv = document.createElement('div');
+                plotDiv.id = 'plotly-dipole-viewer';
+                plotDiv.style.cssText = 'width: 100%; height: 600px; display: none; border: 1px solid #ccc; background: white;';
+                container.appendChild(plotDiv);
+            }
+        }
+        return plotDiv;
+    }
+
+    /**
+     * Switch from Mol* to Plotly view
+     */
+    switchToPlotlyView() {
+        const molstarViewer = document.getElementById('viewer');
+        const plotlyViewer = document.getElementById('plotly-dipole-viewer');
+        
+        if (molstarViewer) {
+            molstarViewer.style.display = 'none';
+        }
+        
+        if (plotlyViewer) {
+            plotlyViewer.style.display = 'block';
+        }
+        
+        // Update button to show "Back to Mol*" option
+        const toggleBtn = document.getElementById('toggle-dipole');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fas fa-undo"></i> Volver a Mol*';
+            toggleBtn.onclick = () => this.switchBackToMolstar();
+        }
+    }
+
+    /**
+     * Switch back to Mol* viewer
+     */
+    switchBackToMolstar() {
+        const molstarViewer = document.getElementById('viewer');
+        const plotlyViewer = document.getElementById('plotly-dipole-viewer');
+        
+        if (molstarViewer) {
+            molstarViewer.style.display = 'block';
+        }
+        
+        if (plotlyViewer) {
+            plotlyViewer.style.display = 'none';
+        }
+        
+        // Reset dipole shape reference
+        this.dipoleShape = null;
+        
+        // Hide dipole info
+        const dipoleInfo = document.getElementById('dipole-info');
+        if (dipoleInfo) {
+            dipoleInfo.style.display = 'none';
+        }
+        
+        // Reset button
+        const toggleBtn = document.getElementById('toggle-dipole');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fas fa-arrow-up"></i> Mostrar Dipolo';
+            toggleBtn.onclick = null; // Will be reassigned by the main event handler
+        }
+    }
+
+    /**
+     * Show dipole using py3Dmol visualization
+     */
+    async showDipoleInPy3Dmol(dipoleData) {
+        try {
+            console.log("Creating py3Dmol visualization with dipole vector");
+            
+            // Get structure data
+            const pdbText = await this.readFileAsText(this.loadedFiles.pdb);
+            
+            // Get or create py3Dmol container
+            const py3dmolDiv = this.getOrCreatePy3DmolDiv();
+            
+            // Clear any existing viewer
+            const container = document.getElementById('py3dmol-container');
+            container.innerHTML = '';
+            
+            // Create py3Dmol viewer
+            const viewer = $3Dmol.createViewer(container, {
+                defaultcolors: $3Dmol.rasmolElementColors,
+                backgroundColor: 'white'
+            });
+            
+            // Add protein structure
+            viewer.addModel(pdbText, "pdb");
+            
+            // Set protein style - cartoon representation
+            viewer.setStyle({}, {
+                cartoon: {
+                    color: 'spectrum',
+                    thickness: 0.5,
+                    opacity: 0.8
+                }
+            });
+            
+            // Add dipole vector as arrow
+            this.addDipoleArrowToPy3Dmol(viewer, dipoleData);
+            
+            // Render and adjust view
+            viewer.zoomTo();
+            viewer.render();
+            
+            // Store viewer reference
+            this.py3dmolViewer = viewer;
+            
+            // Switch to py3Dmol view
+            this.switchToPy3DmolView();
+            
+            console.log("py3Dmol visualization created successfully");
+            
+        } catch (error) {
+            console.error("Error creating py3Dmol visualization:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Add dipole arrow to py3Dmol viewer
+     */
+    addDipoleArrowToPy3Dmol(viewer, dipoleData) {
+        const start = dipoleData.center_of_mass;
+        const end = dipoleData.end_point;
+        
+        // Add arrow shape for dipole vector
+        viewer.addArrow({
+            start: { x: start[0], y: start[1], z: start[2] },
+            end: { x: end[0], y: end[1], z: end[2] },
+            radius: 1.0,
+            radiusRatio: 1.5,
+            mid: 0.8,
+            color: 'red'
+        });
+        
+        // Add sphere at center of mass
+        viewer.addSphere({
+            center: { x: start[0], y: start[1], z: start[2] },
+            radius: 2.0,
+            color: 'red',
+            alpha: 0.8
+        });
+        
+        // Add label at the arrow tip
+        viewer.addLabel(`Dipole Vector\n${dipoleData.magnitude.toFixed(2)} D`, {
+            position: { x: end[0], y: end[1], z: end[2] },
+            backgroundColor: 'red',
+            fontColor: 'white',
+            fontSize: 12,
+            showBackground: true,
+            alignment: 'center'
+        });
+        
+        // Add center of mass label
+        viewer.addLabel('Center of Mass', {
+            position: { x: start[0], y: start[1], z: start[2] },
+            backgroundColor: 'blue',
+            fontColor: 'white',
+            fontSize: 10,
+            showBackground: true,
+            alignment: 'center'
+        });
+    }
+
+    /**
+     * Create py3Dmol container if it doesn't exist
+     */
+    getOrCreatePy3DmolDiv() {
+        let py3dmolDiv = document.getElementById('py3dmol-dipole-viewer');
+        if (!py3dmolDiv) {
+            // Find the structure view container
+            const structureView = document.getElementById('structure-view');
+            if (structureView) {
+                py3dmolDiv = document.createElement('div');
+                py3dmolDiv.id = 'py3dmol-dipole-viewer';
+                py3dmolDiv.style.cssText = 'width: 100%; height: 600px; display: none; border: 1px solid #ccc; background: white; position: relative;';
+                py3dmolDiv.innerHTML = `
+                    <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
+                    <div style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 5px; font-size: 12px;">
+                        <strong>🧬 py3Dmol Visualization</strong><br>
+                        🔴 Red Arrow: Dipole Vector<br>
+                        🔵 Protein: Cartoon representation
+                    </div>
+                `;
+                structureView.appendChild(py3dmolDiv);
+            }
+        }
+        return py3dmolDiv;
+    }
+
+    /**
+     * Switch from Mol* to py3Dmol view
+     */
+    switchToPy3DmolView() {
+        const molstarViewer = document.getElementById('viewer');
+        const plotlyViewer = document.getElementById('plotly-dipole-viewer');
+        const py3dmolViewer = document.getElementById('py3dmol-dipole-viewer');
+        
+        // Hide other viewers
+        if (molstarViewer) molstarViewer.style.display = 'none';
+        if (plotlyViewer) plotlyViewer.style.display = 'none';
+        
+        // Show py3Dmol viewer
+        if (py3dmolViewer) py3dmolViewer.style.display = 'block';
+        
+        // Update button to show "Back to Mol*" option
+        const toggleBtn = document.getElementById('toggle-dipole');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fas fa-undo"></i> Volver a Mol*';
+            toggleBtn.onclick = () => this.switchBackToMolstar();
+        }
+    }
+
+    /**
+     * Switch back to Mol* viewer
+     */
+    switchBackToMolstar() {
+        const molstarViewer = document.getElementById('viewer');
+        const plotlyViewer = document.getElementById('plotly-dipole-viewer');
+        const py3dmolViewer = document.getElementById('py3dmol-dipole-viewer');
+        
+        // Show Mol* viewer
+        if (molstarViewer) molstarViewer.style.display = 'block';
+        
+        // Hide other viewers
+        if (plotlyViewer) plotlyViewer.style.display = 'none';
+        if (py3dmolViewer) py3dmolViewer.style.display = 'none';
+        
+        // Reset dipole shape reference
+        this.dipoleShape = null;
+        this.py3dmolViewer = null;
+        
+        // Hide dipole info
+        const dipoleInfo = document.getElementById('dipole-info');
+        if (dipoleInfo) dipoleInfo.style.display = 'none';
+        
+        // Reset button
+        const toggleBtn = document.getElementById('toggle-dipole');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fas fa-arrow-up"></i> Mostrar Dipolo';
+            toggleBtn.onclick = null; // Will be reassigned by the main event handler
+        }
+    }
+
+    /**
+     * Parse PDB for Plotly visualization - Enhanced version
+     */
+    parsePDBForPlotly(pdbText) {
+        const lines = pdbText.split('\n');
+        const atoms = { x: [], y: [], z: [], colors: [], elements: [] };
+        
+        const colorMap = {
+            'C': '#909090', 'N': '#3050F8', 'O': '#FF0D0D', 
+            'S': '#FFFF30', 'P': '#FF8000', 'H': '#FFFFFF',
+            'CA': '#90EE90', 'FE': '#FFA500', 'ZN': '#808080'
+        };
+        
+        for (const line of lines) {
+            if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+                const x = parseFloat(line.substring(30, 38));
+                const y = parseFloat(line.substring(38, 46));
+                const z = parseFloat(line.substring(46, 54));
+                const element = line.substring(76, 78).trim() || line.substring(13, 14);
+                const atomName = line.substring(12, 16).trim();
+                const resName = line.substring(17, 20).trim();
+                const resNum = line.substring(22, 26).trim();
+                
+                if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                    atoms.x.push(x);
+                    atoms.y.push(y);
+                    atoms.z.push(z);
+                    atoms.colors.push(colorMap[element] || '#909090');
+                    atoms.elements.push(`${resName}${resNum}-${atomName}`);
+                }
+            }
+        }
+        
+        return atoms;
+    }
+
+    /**
+     * Utility function to read file as text
+     */
+    readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(new Error('Failed to read file'));
+            reader.readAsText(file);
+        });
     }
 }
 
