@@ -540,3 +540,313 @@ input:not(:checked) + .slider .slider-text:before {
 .tab-content.active {
     opacity: 1;
 }
+
+/* Dual View Layout Styles */
+.dual-view-container {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+    height: 80vh;
+    min-height: 600px;
+}
+
+.structure-panel {
+    flex: 1;
+    min-width: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.graph-panel {
+    flex: 1;
+    min-width: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header h4 {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+/* View Controls for Structure Panel */
+.view-controls {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.structure-label {
+    background: rgba(255,255,255,0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    margin-right: 10px;
+}
+
+.graph-analysis-label {
+    font-size: 0.9em;
+    font-weight: normal;
+}
+
+.view-btn {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.view-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.view-btn.active {
+    background: white;
+    color: #667eea;
+    font-weight: 600;
+}
+
+/* Structure Container */
+.structure-container {
+    height: calc(100% - 60px);
+    position: relative;
+    overflow: hidden;
+}
+
+.structure-viewer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.structure-viewer.active {
+    display: block;
+}
+
+.structure-viewer:not(.active) {
+    display: none;
+}
+
+/* Viewer Info Overlay */
+.viewer-info {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255,255,255,0.95);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    border: 1px solid #ddd;
+    z-index: 1000;
+}
+
+/* Graph Panel Content */
+.graph-controls {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.controls-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.graph-plot-container {
+    flex: 1;
+    padding: 15px;
+    overflow: hidden;
+}
+
+#graph-plot {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+}
+
+/* Analysis Toggle */
+.analysis-toggle {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.analysis-toggle-btn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.analysis-toggle-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.toggle-icon {
+    margin-left: 8px;
+    transition: transform 0.3s ease;
+}
+
+.analysis-toggle-btn.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* Detailed Analysis Container */
+.detailed-analysis-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.detailed-analysis-container.show {
+    display: block;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design for Dual View */
+@media (max-width: 1200px) {
+    .dual-view-container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .structure-panel,
+    .graph-panel {
+        height: 500px;
+    }
+    
+    .controls-row {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .dual-view-container {
+        gap: 10px;
+    }
+    
+    .structure-panel,
+    .graph-panel {
+        height: 400px;
+    }
+    
+    .panel-header {
+        padding: 10px 15px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .panel-header h4 {
+        font-size: 1em;
+    }
+    
+    .view-controls {
+        flex-wrap: wrap;
+        gap: 3px;
+        justify-content: center;
+    }
+    
+    .view-btn {
+        padding: 3px 8px;
+        font-size: 0.8em;
+    }
+    
+    .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .control-group {
+        margin-right: 0;
+    }
+}
+
+/* Hide tab-related styles since we're not using them anymore */
+.tab-buttons,
+.tab-content,
+.visualization-container {
+    display: none !important;
+}
+
+/* Button styles for new functionality */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background: #138496;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+}

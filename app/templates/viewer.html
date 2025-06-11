@@ -15,8 +15,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
 </head>
 <body>
-    <h3>Visualizador de Proteínas</h3>
+    <h3>Visualizador de Proteínas - Vista Integrada</h3>
 
+    <!-- Controles superiores -->
     <div class="controls-container">
         <div class="control-group">
             <label for="groupSelect">Grupo:</label>
@@ -32,10 +33,10 @@
         </div>
     </div>
 
-    <!-- New file upload section -->
+    <!-- Controles de archivo local -->
     <div class="controls-container">
         <div class="control-group">
-            <label>📁 Cargar archivos locales:</label>
+            <label>📁 Cargar archivos locales para visualización 3D:</label>
             <div style="display: flex; gap: 10px;">
                 <div>
                     <input type="file" id="pdb-file-input" accept=".pdb" style="display: none;">
@@ -54,6 +55,11 @@
                         <i class="fas fa-arrow-up"></i> Mostrar Dipolo
                     </button>
                 </div>
+                <div>
+                    <button id="sync-structure-btn" class="btn btn-success">
+                        <i class="fas fa-sync"></i> Sincronizar con Selector
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -69,30 +75,49 @@
         </div>
     </div>
 
-    <div class="tab-buttons">
-        <div class="tab-button active" data-tab="structure-view">Estructura 3D</div>
-        <div class="tab-button" data-tab="graph-view">Análisis de Grafo</div>
-    </div>
-    
-    <div class="visualization-container">
-        <div id="structure-view" class="tab-content active">
-            <div id="viewer"></div>
-            <!-- Keep existing Plotly dipole viewer -->
-            <div id="plotly-dipole-viewer" style="width: 100%; height: 600px; display: none; border: 1px solid #ccc;"></div>
-            <!-- Add new py3Dmol viewer -->
-            <div id="py3dmol-dipole-viewer" style="width: 100%; height: 600px; display: none; border: 1px solid #ccc; background: white;">
-                <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
-                <div style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 5px; font-size: 12px;">
-                    <strong>🧬 py3Dmol Visualization</strong><br>
-                    🔴 Red Arrow: Dipole Vector<br>
-                    🔵 Protein: Cartoon representation
+    <!-- Layout principal: estructura 3D y grafo lado a lado -->
+    <div class="dual-view-container">
+        <!-- Panel izquierdo: Estructura 3D -->
+        <div class="structure-panel">
+            <div class="panel-header">
+                <h4>🧬 Estructura 3D</h4>
+                <div class="view-controls">
+                    <span id="current-structure-label" class="structure-label">Proteína del selector</span>
+                    <button id="switch-to-molstar" class="view-btn active">Mol*</button>
+                    <button id="switch-to-py3dmol" class="view-btn">py3Dmol</button>
+                    <button id="switch-to-plotly" class="view-btn">Plotly</button>
                 </div>
             </div>
+            
+            <div class="structure-container">
+                <!-- Mol* viewer -->
+                <div id="viewer" class="structure-viewer active"></div>
+                
+                <!-- py3Dmol viewer -->
+                <div id="py3dmol-dipole-viewer" class="structure-viewer" style="display: none;">
+                    <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
+                    <div class="viewer-info">
+                        <strong>🧬 py3Dmol Visualization</strong><br>
+                        🔴 Red Arrow: Dipole Vector<br>
+                        🔵 Protein: Cartoon representation
+                    </div>
+                </div>
+                
+                <!-- Plotly viewer -->
+                <div id="plotly-dipole-viewer" class="structure-viewer" style="display: none;"></div>
+            </div>
         </div>
-        
-        <div id="graph-view" class="tab-content">
+
+        <!-- Panel derecho: Análisis de Grafo -->
+        <div class="graph-panel">
+            <div class="panel-header">
+                <h4>📊 Análisis de Grafo Molecular</h4>
+                <span class="graph-analysis-label">Analizando: <span id="graph-analysis-protein">-</span></span>
+            </div>
+            
+            <!-- Controles del grafo -->
             <div class="graph-controls">
-                <div class="controls-container">
+                <div class="controls-row">
                     <div class="control-group">
                         <label for="long-input">Separación de secuencia:</label>
                         <input id="long-input" type="number" value="5" min="0" step="1">
@@ -103,7 +128,6 @@
                         <input id="dist-input" type="number" value="10.0" min="0" step="0.1">
                     </div>
                     
-                
                     <div class="control-group">
                         <label for="granularity-toggle">Representación:</label>
                         <div class="toggle-switch">
@@ -116,18 +140,26 @@
                 </div>
             </div>
             
+            <!-- Visualización del grafo -->
             <div class="graph-plot-container">
                 <div id="graph-plot"></div>
             </div>
         </div>
     </div>
 
-   
-    <div class="graph-properties-container">
+    <!-- Panel de análisis detallado (expandible) -->
+    <div class="analysis-toggle">
+        <button id="toggle-analysis" class="analysis-toggle-btn">
+            📈 Mostrar Análisis Detallado <span class="toggle-icon">▼</span>
+        </button>
+    </div>
+
+    <div id="detailed-analysis" class="detailed-analysis-container" style="display: none;">
+        <!-- Todo el contenido del análisis detallado existente -->
         <div class="analysis-panel">
             <h4>Análisis Detallado del Grafo Molecular</h4>
             
-            
+            <!-- Información Estructural Básica -->
             <div class="analysis-section">
                 <h5>Información Estructural Básica</h5>
                 <div class="info-grid">
@@ -157,7 +189,6 @@
                     </div>
                 </div>
 
-                >
                 <div class="info-grid">
                     <div class="info-item" style="grid-column: 1 / -1;">
                         <span class="label">Tipo de grafo:</span>
@@ -166,7 +197,7 @@
                 </div>
             </div>
 
-          
+            <!-- Métricas de Centralidad -->
             <div class="analysis-section">
                 <h5>Métricas de Centralidad - Resumen</h5>
                 <div class="centrality-summary">
@@ -208,7 +239,7 @@
                 </div>
             </div>
 
-            
+            <!-- Top 5 Residuos -->
             <div class="analysis-section">
                 <h5>Top 5 Residuos por Métrica</h5>
                 <div class="top-residues-grid">
@@ -231,7 +262,7 @@
                 </div>
             </div>
 
-            
+            <!-- Exportar Datos -->
             <div class="analysis-section">
                 <h5>Exportar Datos Completos</h5>
                 <div class="export-controls">
@@ -242,14 +273,13 @@
                     </button>
                     <p class="export-info">Descarga un archivo CSV con las métricas de centralidad de la toxina actual</p>
                     
-                    <!-- Nueva funcionalidad: Exportación por familias -->
+                    <!-- Exportación por familias -->
                     <div class="family-export-section">
                         <h6>Análisis por Familias de Toxinas</h6>
                         <select id="family-selector" class="family-selector">
                             <option value="">Seleccionar familia...</option>
                             <option value="μ-TRTX-Hh2a">μ-TRTX-Hh2a (Familia Hh2a)</option>
                             <option value="μ-TRTX-Hhn2b">μ-TRTX-Hhn2b (Familia Hhn2b)</option>
-
                             <option value="β-TRTX">β-TRTX (Familia Beta)</option>
                             <option value="ω-TRTX">ω-TRTX (Familia Omega)</option>
                         </select>
@@ -262,7 +292,6 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -274,11 +303,11 @@
         }
     </script>
 
-   
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.js"></script>
     <script src="{{ url_for('static', filename='js/molstar_analyzer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/graph_viewer.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tabs.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dual_view_manager.js') }}"></script>
 </body>
 </html>

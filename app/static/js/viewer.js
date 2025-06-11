@@ -98,15 +98,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         const group = groupSelect.value;
         loadProteins(group);
         
-        
         const selectedId = proteinSelect.value;
-        if (selectedId) loadPDB(group, selectedId);
+        if (selectedId) {
+            loadPDB(group, selectedId);
+            // Notify dual view manager
+            if (window.dualViewManager) {
+                const selectedName = proteinSelect.options[proteinSelect.selectedIndex]?.text;
+                window.dualViewManager.onDatabaseProteinSelected(group, selectedId, selectedName);
+            }
+        }
     });
 
     proteinSelect.addEventListener("change", () => {
         const group = groupSelect.value;
         const id = proteinSelect.value;
         loadPDB(group, id);
+        
+        // Notify dual view manager
+        if (window.dualViewManager) {
+            const selectedName = proteinSelect.options[proteinSelect.selectedIndex]?.text;
+            window.dualViewManager.onDatabaseProteinSelected(group, id, selectedName);
+        }
     });
 
 
@@ -147,8 +159,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                     loadPdbBtn.innerHTML = '<i class="fas fa-check"></i> PDB Cargado';
                     loadPdbBtn.style.background = '#28a745';
                     
-                    // Enable PSF loading
-                    loadPsfBtn.disabled = false;
+                    // Notify dual view manager
+                    if (window.dualViewManager) {
+                        window.dualViewManager.onLocalStructureLoaded(file.name);
+                    }
                     
                 } catch (error) {
                     alert('Error cargando PDB: ' + error.message);
@@ -171,8 +185,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                     loadPsfBtn.innerHTML = '<i class="fas fa-check"></i> PSF Cargado';
                     loadPsfBtn.style.background = '#28a745';
                     
-                    // Enable dipole calculation
-                    toggleDipoleBtn.disabled = false;
+                    // Notify dual view manager
+                    if (window.dualViewManager) {
+                        window.dualViewManager.onPSFLoaded(file.name);
+                    }
                     
                 } catch (error) {
                     alert('Error cargando PSF: ' + error.message);
@@ -183,29 +199,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Dipole toggle
         toggleDipoleBtn.addEventListener('click', async () => {
             try {
-                if (!dipoleVisible) {
+                if (!window.dualViewManager.dipoleVisible) {
                     toggleDipoleBtn.textContent = '⏳ Calculando...';
                     
                     const dipoleData = await window.molstarAnalyzer.calculateAndShowDipole();
                     
-                    // Try py3Dmol first (best for molecular visualization)
-                    try {
-                        await window.molstarAnalyzer.showDipoleInPy3Dmol(dipoleData);
-                        console.log("Using py3Dmol visualization for dipole");
-                    } catch (py3dmolError) {
-                        console.log("py3Dmol failed, trying Plotly visualization");
-                        try {
-                            await window.molstarAnalyzer.showDipoleInPlotly(dipoleData);
-                        } catch (plotlyError) {
-                            console.log("Both py3Dmol and Plotly failed, trying Mol* visualization");
-                            try {
-                                await window.molstarAnalyzer.visualizeDipoleVector(dipoleData);
-                            } catch (molstarError) {
-                                console.log("All visualizations failed, showing info only");
-                                window.molstarAnalyzer.showDipoleInfo(dipoleData);
-                            }
-                        }
-                    }
+                    // Show dipole using dual view manager
+                    await window.dualViewManager.showDipole(dipoleData);
                     
                     // Update UI with dipole info
                     document.getElementById('dipole-magnitude').textContent = 
@@ -214,14 +214,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                         `[${dipoleData.normalized.map(x => x.toFixed(3)).join(', ')}]`;
                     document.getElementById('dipole-info').style.display = 'block';
                     
-                    toggleDipoleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ocultar Dipolo';
-                    dipoleVisible = true;
-                    
                 } else {
-                    await window.molstarAnalyzer.removeDipoleVector();
+                    await window.dualViewManager.hideDipole();
                     document.getElementById('dipole-info').style.display = 'none';
-                    toggleDipoleBtn.innerHTML = '<i class="fas fa-arrow-up"></i> Mostrar Dipolo';
-                    dipoleVisible = false;
                 }
                 
             } catch (error) {
