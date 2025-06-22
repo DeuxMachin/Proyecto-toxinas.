@@ -93,6 +93,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             alert("Error al cargar la estructura: " + error.message);
         }
     }
+
+    // Variables para manejo de dipolo
+    let currentDipoleData = null;
+    let dipoleCalculationInProgress = false;
+
     // Cuando cambiemos el grupo de proteínas, cargamos las proteínas correspondientes
     groupSelect.addEventListener("change", () => {
         const group = groupSelect.value;
@@ -105,6 +110,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (window.dualViewManager) {
                 const selectedName = proteinSelect.options[proteinSelect.selectedIndex]?.text;
                 window.dualViewManager.onDatabaseProteinSelected(group, selectedId, selectedName);
+            }
+            
+            // Automatizar cálculo de dipolo para Nav1.7
+            if (group === "nav1_7") {
+                setTimeout(() => calculateDipoleFromDatabase(group, selectedId), 1000);
+            } else {
+                resetDipoleControls();
             }
         }
     });
@@ -119,11 +131,123 @@ document.addEventListener("DOMContentLoaded", async () => {
             const selectedName = proteinSelect.options[proteinSelect.selectedIndex]?.text;
             window.dualViewManager.onDatabaseProteinSelected(group, id, selectedName);
         }
+        
+        // Automatizar cálculo de dipolo para Nav1.7
+        if (group === "nav1_7") {
+            setTimeout(() => calculateDipoleFromDatabase(group, id), 1000);
+        } else {
+            resetDipoleControls();
+        }
     });
 
+    // Función para calcular dipolo desde base de datos
+    async function calculateDipoleFromDatabase(group, id) {
+        if (group !== "nav1_7" || dipoleCalculationInProgress) return;
+        
+        dipoleCalculationInProgress = true;
+        updateDipoleStatus("Calculando dipolo...", "calculating");
+        
+        try {
+            const response = await fetch(`/calculate_dipole_from_db/${group}/${id}`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                currentDipoleData = result.dipole;
+                updateDipoleStatus("Dipolo calculado - py3Dmol disponible", "ready");
+                
+                // Mostrar información del dipolo automáticamente
+                displayDipoleInfo(currentDipoleData);
+                
+                // Notificar al dual view manager que el dipolo está listo
+                if (window.dualViewManager) {
+                    window.dualViewManager.onDipoleCalculated(currentDipoleData);
+                }
+                
+            } else {
+                throw new Error(result.error || 'Error desconocido calculando dipolo');
+            }
+            
+        } catch (error) {
+            console.error('Error calculating dipole:', error);
+            updateDipoleStatus("Error calculando dipolo", "error");
+            currentDipoleData = null;
+        } finally {
+            dipoleCalculationInProgress = false;
+        }
+    }
 
+    // Función para mostrar información del dipolo - simplificada
+    function displayDipoleInfo(dipoleData) {
+        // Ya no necesitamos mostrar la información aquí porque se maneja en el panel de análisis
+        console.log('Dipole data received:', dipoleData);
+    }
+
+    // Función para actualizar el estado del dipolo
+    function updateDipoleStatus(text, status) {
+        const statusElement = document.getElementById('dipole-status-text');
+        const statusContainer = document.getElementById('dipole-status');
+        
+        if (statusElement) {
+            statusElement.textContent = text;
+        }
+        
+        if (statusContainer) {
+            statusContainer.className = `dipole-status ${status}`;
+        }
+    }
+
+    // Función para resetear controles de dipolo - simplificada
+    function resetDipoleControls() {
+        currentDipoleData = null;
+        updateDipoleStatus("Solo disponible para Nav1.7", "disabled");
+        
+        // Notificar al dual view manager que se resetee el dipolo
+        if (window.dualViewManager) {
+            window.dualViewManager.resetDipoleState();
+        }
+    }
+
+    // Event listener para mostrar/ocultar dipolo
+    const showDipoleBtn = document.getElementById('show-dipole-btn');
+    if (showDipoleBtn) {
+        showDipoleBtn.addEventListener('click', async () => {
+            if (!currentDipoleData) {
+                alert('No hay datos de dipolo disponibles');
+                return;
+            }
+            
+            try {
+                if (!window.dualViewManager.dipoleVisible) {
+                    // Mostrar dipolo
+                    await window.dualViewManager.showDipole(currentDipoleData);
+                    
+                    // Actualizar UI con info de dipolo
+                    document.getElementById('dipole-magnitude').textContent = 
+                        currentDipoleData.magnitude.toFixed(3);
+                    document.getElementById('dipole-direction').textContent = 
+                        `[${currentDipoleData.normalized.map(x => x.toFixed(3)).join(', ')}]`;
+                    document.getElementById('dipole-info').style.display = 'block';
+                    
+                    showDipoleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ocultar Dipolo';
+                } else {
+                    // Ocultar dipolo
+                    await window.dualViewManager.hideDipole();
+                    document.getElementById('dipole-info').style.display = 'none';
+                    showDipoleBtn.innerHTML = '<i class="fas fa-eye"></i> Mostrar Dipolo';
+                }
+                
+            } catch (error) {
+                alert('Error mostrando/ocultando dipolo: ' + error.message);
+                console.error('Dipole visualization error:', error);
+            }
+        });
+    }
+
+    // Inicialización
     groupSelect.value = "toxinas";
-  
     loadProteins("toxinas");
 
     setTimeout(() => {

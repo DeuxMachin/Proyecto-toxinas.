@@ -1130,3 +1130,400 @@ input:not(:checked) + .slider .slider-text:before {
         left: 10px;
     }
 }
+
+/* Agregar estos estilos al final del archivo */
+
+/* Dipole Status Styles */
+.dipole-status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 500;
+    border: 1px solid;
+    min-width: 200px;
+    text-align: center;
+}
+
+.dipole-status.disabled {
+    background: #f8f9fa;
+    color: #6c757d;
+    border-color: #dee2e6;
+}
+
+.dipole-status.calculating {
+    background: #fff3cd;
+    color: #856404;
+    border-color: #ffeaa7;
+    animation: pulse 2s infinite;
+}
+
+.dipole-status.ready {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    color: #155724;
+    border-color: #28a745;
+    font-weight: 600;
+}
+
+.dipole-status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border-color: #f5c6cb;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Estilos para botón py3Dmol deshabilitado */
+.view-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+}
+
+.view-btn:disabled:hover {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    transform: none;
+}
+
+/* Agregar al final del archivo */
+
+/* Mejorar el estilo de la información del dipolo */
+#dipole-info .control-group > div {
+    transition: all 0.3s ease;
+}
+
+#dipole-info small {
+    line-height: 1.4;
+}
+
+/* Estilo para valores numéricos destacados */
+#dipole-magnitude,
+#dipole-angle-z {
+    font-size: 1.1em;
+    font-weight: 700;
+}
+
+/* Estilo para coordenadas */
+#dipole-center,
+#dipole-endpoint,
+#dipole-direction {
+    font-size: 0.9em;
+    background: rgba(0,0,0,0.05);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+/* Animación suave para mostrar información */
+#dipole-info {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Agregar al final del archivo - Nuevos estilos para dipolo */
+
+/* Contenedor principal del dipolo */
+.dipole-info-container {
+    margin-top: 15px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 20px;
+    border: 2px solid #dee2e6;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    animation: dipoleSlideIn 0.4s ease-out;
+}
+
+/* Header del dipolo */
+.dipole-header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #007bff;
+}
+
+.dipole-header h4 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.3em;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+/* Grid de propiedades del dipolo */
+.dipole-properties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+    align-items: center;
+}
+
+/* Cada propiedad individual */
+.dipole-property {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
+
+.dipole-property:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,123,255,0.2);
+}
+
+/* Etiquetas de propiedades */
+.property-label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95em;
+    min-width: 140px;
+    flex-shrink: 0;
+}
+
+/* Valores de propiedades */
+.property-value {
+    font-weight: 700;
+    color: #007bff;
+    font-size: 1.1em;
+    flex-grow: 1;
+    text-align: center;
+}
+
+/* Unidades */
+.property-unit {
+    font-weight: 500;
+    color: #6c757d;
+    font-size: 0.9em;
+    flex-shrink: 0;
+}
+
+/* Estilos específicos para diferentes tipos de valores */
+.direction-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    background: rgba(0,123,255,0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #0056b3;
+}
+
+.coordinates-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    background: rgba(108,117,125,0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #495057;
+}
+
+/* Colores específicos para cada propiedad */
+.dipole-property:nth-child(1) {
+    border-left-color: #28a745; /* Verde para magnitud */
+}
+
+.dipole-property:nth-child(1) .property-value {
+    color: #28a745;
+}
+
+.dipole-property:nth-child(2) {
+    border-left-color: #fd7e14; /* Naranja para ángulo */
+}
+
+.dipole-property:nth-child(2) .property-value {
+    color: #fd7e14;
+}
+
+.dipole-property:nth-child(3) {
+    border-left-color: #6f42c1; /* Púrpura para dirección */
+}
+
+.dipole-property:nth-child(3) .property-value {
+    color: #6f42c1;
+}
+
+.dipole-property:nth-child(4) {
+    border-left-color: #dc3545; /* Rojo para centro de masa */
+}
+
+.dipole-property:nth-child(4) .property-value {
+    color: #dc3545;
+}
+
+.dipole-property:nth-child(5) {
+    border-left-color: #17a2b8; /* Cian para punto final */
+}
+
+.dipole-property:nth-child(5) .property-value {
+    color: #17a2b8;
+}
+
+/* Animación de entrada */
+@keyframes dipoleSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive design para el dipolo */
+@media (max-width: 1200px) {
+    .dipole-properties-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 12px;
+    }
+    
+    .dipole-property {
+        padding: 10px 14px;
+    }
+    
+    .property-label {
+        min-width: 120px;
+        font-size: 0.9em;
+    }
+}
+
+@media (max-width: 768px) {
+    .dipole-properties-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .dipole-property {
+        flex-direction: column;
+        text-align: center;
+        padding: 12px;
+    }
+    
+    .property-label {
+        min-width: auto;
+        margin-bottom: 5px;
+    }
+    
+    .property-value {
+        margin-bottom: 3px;
+    }
+    
+    .dipole-header h4 {
+        font-size: 1.1em;
+    }
+}
+
+/* Actualizar la animación de entrada existente */
+#dipole-info {
+    /* Remover la animación anterior y usar la nueva */
+    animation: none;
+}
+
+/* Mejorar el contraste en dispositivos móviles */
+@media (max-width: 480px) {
+    .dipole-info-container {
+        margin-top: 10px;
+        padding: 15px;
+        border-radius: 8px;
+    }
+    
+    .dipole-header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+    }
+    
+    .dipole-property {
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    
+    .property-value {
+        font-size: 1em;
+    }
+}
+
+/* Agregar al final del archivo */
+
+/* Estilos para el estado del dipolo simplificado en controles */
+#dipole-status-container {
+    margin-left: auto; /* Empujar hacia la derecha */
+}
+
+#dipole-status-container .dipole-status {
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    border: 1px solid;
+    min-width: 150px;
+    text-align: center;
+}
+
+/* Botones de análisis mejorados */
+.analysis-toggle {
+    text-align: center;
+    margin: 20px 0;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.analysis-toggle-btn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    min-width: 250px;
+}
+
+.dipole-toggle-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.analysis-toggle-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.dipole-toggle-btn:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+}
+
+.analysis-toggle-btn.expanded {
+    background: linear-gradient(135deg, #218838 0%, #1c9c85 100%);
+}
+
+.dipole-toggle-btn.expanded {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+}
+
+.toggle-icon {
+    margin-left: 8px;
+    transition: transform 0.3s ease;
+}
+
+.analysis-toggle-btn.expanded .toggle-icon {
+    transform: rotate(180deg);
+}

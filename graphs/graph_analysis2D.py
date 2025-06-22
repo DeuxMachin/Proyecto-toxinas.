@@ -124,6 +124,8 @@ class Nav17ToxinGraphAnalyzer:
     def calculate_dipole_moment(self, structure):
         """Calcula momento dipolar (crítico para interacciones con VSD de Nav1.7)"""
         dipole = np.zeros(3)
+        center_of_mass = np.zeros(3)
+        total_mass = 0
         
         for model in structure:
             for chain in model:
@@ -136,9 +138,34 @@ class Nav17ToxinGraphAnalyzer:
                             # Uso de átomo CA para posición
                             if "CA" in residue:
                                 pos = residue["CA"].get_coord()
-                                dipole += charge * pos
+                                mass = 1.0  # Simplified mass
+                                
+                                center_of_mass += mass * pos
+                                total_mass += mass
                         except:
                             continue
+        
+        # Calculate center of mass
+        if total_mass > 0:
+            center_of_mass = center_of_mass / total_mass
+        
+        # Calculate dipole moment
+        for model in structure:
+            for chain in model:
+                for residue in chain:
+                    if is_aa(residue):
+                        try:
+                            aa = seq1(residue.get_resname())
+                            charge = CHARGES.get(aa, 0)
+                            
+                            if "CA" in residue:
+                                pos = residue["CA"].get_coord()
+                                dipole += charge * (pos - center_of_mass)
+                        except:
+                            continue
+        
+        # Store dipole vector for compatibility
+        self.dipole_moment_vector = dipole
         
         # Normalización del vector dipolar
         magnitude = np.linalg.norm(dipole)
@@ -146,11 +173,24 @@ class Nav17ToxinGraphAnalyzer:
             dipole_norm = dipole / magnitude
         else:
             dipole_norm = np.zeros(3)
-            
+        
+        # Calculate angle with Z-axis
+        z_axis = np.array([0, 0, 1])
+        cos_angle = np.dot(dipole_norm, z_axis)
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)
+        angle_radians = np.arccos(cos_angle)
+        angle_degrees = np.degrees(angle_radians)
+        
         return {
             'vector': dipole,
             'magnitude': magnitude,
-            'normalized': dipole_norm
+            'normalized': dipole_norm,
+            'center_of_mass': center_of_mass,
+            'end_point': center_of_mass + dipole_norm * 20,
+            'angle_with_z_axis': {
+                'degrees': float(angle_degrees),
+                'radians': float(angle_radians)
+            }
         }
     
     def calculate_dipole_moment_with_psf(self, pdb_path, psf_path=None):
@@ -158,30 +198,56 @@ class Nav17ToxinGraphAnalyzer:
         try:
             # Try MDAnalysis first if PSF is provided
             if psf_path and os.path.exists(psf_path):
-                import MDAnalysis as mda
-                
-                u = mda.Universe(psf_path, pdb_path)
-                protein = u.select_atoms("protein")
-                
-                if len(protein) == 0:
-                    raise ValueError("No protein atoms found")
-                
-                # Use PSF charges directly
-                charges = protein.charges
-                positions = protein.positions
-                center_of_mass = protein.center_of_mass()
-                
-                # Calculate dipole vector
-                dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
+                try:
+                    import MDAnalysis as mda
+                    
+                    u = mda.Universe(psf_path, pdb_path)
+                    protein = u.select_atoms("protein")
+                    
+                    if len(protein) == 0:
+                        raise ValueError("No protein atoms found")
+                    
+                    # Use PSF charges directly
+                    charges = protein.charges
+                    positions = protein.positions
+                    center_of_mass = protein.center_of_mass()
+                    
+                    # Calculate dipole vector
+                    dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
+                    
+                    # Store for compatibility with other methods
+                    self.dipole_moment_vector = dipole_vector
+                    
+                except ImportError:
+                    print("MDAnalysis not available, using BioPython fallback")
+                    charges, positions, center_of_mass = self._extract_charges_positions_from_file(pdb_path)
+                    dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
+                    self.dipole_moment_vector = dipole_vector
                 
             else:
-                # Fallback to BioPython method (your existing implementation)
-                structure = self.load_pdb_structure(pdb_path)
-                charges, positions, center_of_mass = self._extract_charges_positions(structure)
+                # Fallback to BioPython method
+                charges, positions, center_of_mass = self._extract_charges_positions_from_file(pdb_path)
                 dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
+                self.dipole_moment_vector = dipole_vector
             
+            # Calculate magnitude
             magnitude = np.linalg.norm(dipole_vector)
+            
+            # Normalize the dipole vector
             normalized = dipole_vector / magnitude if magnitude > 0 else np.zeros(3)
+            
+            # Calculate angle with Z-axis
+            z_axis = np.array([0, 0, 1])
+            
+            # Calculate the angle using dot product
+            cos_angle = np.dot(normalized, z_axis)
+            
+            # Ensure cosine is in valid range [-1, 1] to avoid numerical errors
+            cos_angle = np.clip(cos_angle, -1.0, 1.0)
+            
+            # Calculate angle in radians and convert to degrees
+            angle_radians = np.arccos(cos_angle)
+            angle_degrees = np.degrees(angle_radians)
             
             # Scale for visualization (20 Angstroms)
             visualization_end = center_of_mass + normalized * 20
@@ -192,14 +258,17 @@ class Nav17ToxinGraphAnalyzer:
                 'normalized': normalized.tolist(),
                 'center_of_mass': center_of_mass.tolist(),
                 'end_point': visualization_end.tolist(),
-                'method': 'PSF' if psf_path else 'calculated'
+                'angle_with_z_axis': {
+                    'degrees': float(angle_degrees),
+                    'radians': float(angle_radians)
+                },
+                'method': 'PSF' if (psf_path and os.path.exists(psf_path)) else 'calculated'
             }
             
-        except ImportError:
-            # MDAnalysis not available, use BioPython fallback
-            return self.calculate_dipole_moment_fallback(pdb_path)
         except Exception as e:
             print(f"Error in dipole calculation: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise e
 
     def load_pdb_structure(self, pdb_path):
@@ -240,6 +309,74 @@ class Nav17ToxinGraphAnalyzer:
         
         return charges, positions, center_of_mass
     
+    def _extract_charges_positions_from_file(self, pdb_path):
+        """Extract charges and positions from PDB file using BioPython"""
+        try:
+            from Bio.PDB import PDBParser
+            from Bio.PDB.Polypeptide import is_aa
+            
+            parser = PDBParser(QUIET=True)
+            structure = parser.get_structure("protein", pdb_path)
+            
+            # Enhanced charge assignment based on amino acid properties
+            amino_acid_charges = {
+                'ARG': 1.0,   # Arginine - positively charged
+                'LYS': 1.0,   # Lysine - positively charged
+                'ASP': -1.0,  # Aspartic acid - negatively charged
+                'GLU': -1.0,  # Glutamic acid - negatively charged
+                'HIS': 0.5,   # Histidine - partially charged (pH dependent)
+                'CYS': 0.0,   # Cysteine - can form disulfide bonds
+                'SER': 0.0,   # Serine - polar
+                'THR': 0.0,   # Threonine - polar
+                'ASN': 0.0,   # Asparagine - polar
+                'GLN': 0.0,   # Glutamine - polar
+                'TYR': 0.0,   # Tyrosine - polar
+                'TRP': 0.0,   # Tryptophan - nonpolar
+                'PHE': 0.0,   # Phenylalanine - nonpolar
+                'ILE': 0.0,   # Isoleucine - nonpolar
+                'LEU': 0.0,   # Leucine - nonpolar
+                'VAL': 0.0,   # Valine - nonpolar
+                'MET': 0.0,   # Methionine - nonpolar
+                'ALA': 0.0,   # Alanine - nonpolar
+                'GLY': 0.0,   # Glycine - nonpolar
+                'PRO': 0.0    # Proline - nonpolar
+            }
+            
+            charges = []
+            positions = []
+            
+            for model in structure:
+                for chain in model:
+                    for residue in chain:
+                        if is_aa(residue):
+                            resname = residue.get_resname()
+                            charge = amino_acid_charges.get(resname, 0.0)
+                            
+                            try:
+                                ca_atom = residue['CA']
+                                charges.append(charge)
+                                positions.append(ca_atom.get_coord())
+                            except KeyError:
+                                # Skip residues without CA atom
+                                continue
+        
+            if len(charges) == 0:
+                raise ValueError("No valid residues found for dipole calculation")
+            
+            charges = np.array(charges)
+            positions = np.array(positions)
+            center_of_mass = np.mean(positions, axis=0)
+            
+            print(f"Processed {len(charges)} residues for dipole calculation")
+            print(f"Total charge: {np.sum(charges):.1f}")
+            print(f"Center of mass: [{center_of_mass[0]:.2f}, {center_of_mass[1]:.2f}, {center_of_mass[2]:.2f}]")
+            
+            return charges, positions, center_of_mass
+            
+        except Exception as e:
+            print(f"Error extracting charges and positions: {str(e)}")
+            raise e
+
     def identify_pharmacophore_residues(self, G, pharmacophore_pattern=None):
         """
         Identifica residuos que coinciden con patrón farmacofórico para toxinas Nav1.7

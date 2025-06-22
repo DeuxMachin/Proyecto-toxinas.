@@ -31,46 +31,12 @@
             <label for="proteinSelect">Proteína:</label>
             <select id="proteinSelect"></select>
         </div>
-    </div>
-
-    <!-- Controles de archivo local -->
-    <div class="controls-container">
-        <div class="control-group">
-            <label>📁 Cargar archivos locales para visualización 3D:</label>
-            <div style="display: flex; gap: 10px;">
-                <div>
-                    <input type="file" id="pdb-file-input" accept=".pdb" style="display: none;">
-                    <button id="load-pdb-btn" class="btn btn-secondary">
-                        <i class="fas fa-upload"></i> Cargar PDB
-                    </button>
-                </div>
-                <div>
-                    <input type="file" id="psf-file-input" accept=".psf" style="display: none;">
-                    <button id="load-psf-btn" class="btn btn-secondary">
-                        <i class="fas fa-upload"></i> Cargar PSF
-                    </button>
-                </div>
-                <div>
-                    <button id="toggle-dipole" class="btn btn-info" disabled>
-                        <i class="fas fa-arrow-up"></i> Mostrar Dipolo
-                    </button>
-                </div>
-                <div>
-                    <button id="sync-structure-btn" class="btn btn-success">
-                        <i class="fas fa-sync"></i> Sincronizar con Selector
-                    </button>
-                </div>
-            </div>
-        </div>
         
-        <!-- Dipole info display -->
-        <div id="dipole-info" class="control-group" style="display: none;">
-            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #dee2e6;">
-                <small><strong>Vector Dipolo:</strong></small><br>
-                <small>Magnitud: <span id="dipole-magnitude">-</span> D</small><br>
-                <small>Dirección: <span id="dipole-direction">-</span></small>
-                <div id="dipole-coordinates" style="margin-top: 10px; font-size: 11px; color: #666;">
-                </div>
+        <!-- Solo mostrar estado del dipolo, sin toda la información -->
+        <div class="control-group" id="dipole-status-container" style="display: none;">
+            <label>Estado del Dipolo:</label>
+            <div id="dipole-status" class="dipole-status">
+                <span id="dipole-status-text">Seleccione una proteína Nav1.7</span>
             </div>
         </div>
     </div>
@@ -83,8 +49,8 @@
                 <h4>🧬 Estructura 3D</h4>
                 <div class="view-controls">
                     <span id="current-structure-label" class="structure-label">Proteína del selector</span>
-                    <button id="switch-to-molstar" class="view-btn active">Mol*</button>
-                    <button id="switch-to-py3dmol" class="view-btn">py3Dmol</button>
+                    <button id="switch-to-molstar" class="view-btn active">Proteína</button>
+                    <button id="switch-to-py3dmol" class="view-btn">Dipolo</button>
                 </div>
             </div>
             
@@ -96,7 +62,7 @@
                 <div id="py3dmol-dipole-viewer" class="structure-viewer" style="display: none;">
                     <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
                     <div class="viewer-info">
-                        <strong>🧬 Visualización py3Dmol</strong><br>
+                        <strong>Visualización Dipolo</strong><br>
                         🔴 Flecha Roja: Vector del dipolo<br>
                         🔵 Proteina: Representacion "Cartoon"
                     </div>
@@ -124,7 +90,7 @@
                     
                     <div class="control-group">
                         <label for="dist-input">Distancia umbral (Å):</label>
-                        <input id="dist-input" type="number" value="10.0" min="0" step="0.1">
+                        <input id="dist-input" type="number" value="6.0" min="0" step="0.1">
                     </div>
                     
                     <div class="control-group">
@@ -146,15 +112,19 @@
         </div>
     </div>
 
-    <!-- Panel de análisis detallado (expandible) -->
+    <!-- Panel de análisis con botones para alternar entre grafo y dipolo -->
     <div class="analysis-toggle">
         <button id="toggle-analysis" class="analysis-toggle-btn">
             📈 Mostrar Análisis Detallado <span class="toggle-icon">▼</span>
         </button>
+        <button id="toggle-dipole-analysis" class="analysis-toggle-btn dipole-toggle-btn" style="display: none;">
+            🧬 Mostrar Cálculos Dipolo <span class="toggle-icon">▼</span>
+        </button>
     </div>
 
+    <!-- Contenedor para análisis detallado del grafo -->
     <div id="detailed-analysis" class="detailed-analysis-container" style="display: none;">
-        <!-- Todo el contenido del análisis detallado existente -->
+        <!-- Todo el contenido del análisis detallado existente del grafo -->
         <div class="analysis-panel">
             <h4>Análisis Detallado del Grafo Molecular</h4>
             
@@ -315,6 +285,74 @@
                 <p class="export-info">
                     Genera análisis comparativo en Excel entre la toxina WT seleccionada y la referencia hwt4_Hh2a_WT.pdb
                 </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor para cálculos del dipolo -->
+    <div id="dipole-calculations" class="detailed-analysis-container" style="display: none;">
+        <div class="analysis-panel">
+            <h4>🧬 Cálculos del Vector Dipolo</h4>
+            
+            <!-- Información del Dipolo -->
+            <div class="analysis-section">
+                <div class="dipole-info-container">
+                    <div class="dipole-header">
+                        <h4>Análisis de Dipolo</h4>
+                    </div>
+                    
+                    <div class="dipole-properties-grid">
+                        <div class="dipole-property">
+                            <span class="property-label">📏 Magnitud:</span>
+                            <span class="property-value" id="dipole-magnitude-detail">-</span>
+                            <span class="property-unit">D</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">📐 Ángulo con eje Z:</span>
+                            <span class="property-value" id="dipole-angle-z-detail">-</span>
+                            <span class="property-unit">°</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">🧭 Dirección normalizada:</span>
+                            <span class="property-value direction-value" id="dipole-direction-detail">-</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">📍 Centro de masa:</span>
+                            <span class="property-value coordinates-value" id="dipole-center-detail">-</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">🎯 Punto final:</span>
+                            <span class="property-value coordinates-value" id="dipole-endpoint-detail">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información adicional del dipolo -->
+            <div class="analysis-section">
+                <h5>Información Técnica del Cálculo</h5>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="label">Método de cálculo:</span>
+                        <span class="value" id="dipole-method">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Vector dipolo (x, y, z):</span>
+                        <span class="value" id="dipole-vector-raw">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Ángulo en radianes:</span>
+                        <span class="value" id="dipole-angle-radians">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Proteína analizada:</span>
+                        <span class="value" id="dipole-protein-name">-</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

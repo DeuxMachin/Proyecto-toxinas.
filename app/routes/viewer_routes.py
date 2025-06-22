@@ -739,7 +739,7 @@ def calculate_dipole():
             return jsonify({"error": "No PDB file provided"}), 400
         
         pdb_file = request.files['pdb_file']
-        psf_file = request.files.get('psf_file')  # PSF is optional
+        psf_file = request.files.get('psf_blob')  # PSF is optional
         
         if pdb_file.filename == '':
             return jsonify({"error": "No PDB file selected"}), 400
@@ -1061,4 +1061,94 @@ def process_single_toxin_for_comparison(pdb_data, toxin_name, ic50_value, ic50_u
         import traceback
         traceback.print_exc()
         return []
+        
+# Agregar este nuevo endpoint después de get_pdb
+@viewer_bp.route("/get_psf/<string:source>/<int:pid>")
+def get_psf(source, pid):
+    """Obtener archivo PSF desde la base de datos"""
+    if source != "nav1_7":
+        return jsonify({"error": "PSF files only available for nav1_7"}), 400
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT psf_blob FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+    result = cursor.fetchone()
+    conn.close()
+    
+    if not result or not result[0]:
+        return jsonify({"error": "PSF not found"}), 404
+    
+    psf_data = result[0]
+    
+    try:
+        if isinstance(psf_data, bytes):
+            return psf_data.decode('utf-8'), 200, {'Content-Type': 'text/plain'}
+        else:
+            return str(psf_data), 200, {'Content-Type': 'text/plain'}
+    except Exception as e:
+        return jsonify({"error": f"Error processing PSF: {str(e)}"}), 500
+
+# Modificar el endpoint calculate_dipole para trabajar con archivos de BD
+@viewer_bp.route("/calculate_dipole_from_db/<string:source>/<int:pid>", methods=['POST'])
+def calculate_dipole_from_db(source, pid):
+    """Calculate dipole moment from database PDB and PSF files"""
+    try:
+        if source != "nav1_7":
+            return jsonify({"error": "Dipole calculation only available for nav1_7"}), 400
+        
+        # Get PDB and PSF data from database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT pdb_blob, psf_blob FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return jsonify({"error": "Data not found"}), 404
+        
+        pdb_data, psf_data = result
+        
+        if not pdb_data:
+            return jsonify({"error": "No PDB data found"}), 404
+        
+        # Create temporary files
+        with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as pdb_temp:
+            if isinstance(pdb_data, bytes):
+                pdb_temp.write(pdb_data)
+            else:
+                pdb_temp.write(pdb_data.encode('utf-8'))
+            pdb_path = pdb_temp.name
+        
+        psf_path = None
+        if psf_data:
+            with tempfile.NamedTemporaryFile(suffix='.psf', delete=False) as psf_temp:
+                if isinstance(psf_data, bytes):
+                    psf_temp.write(psf_data)
+                else:
+                    psf_temp.write(psf_data.encode('utf-8'))
+                psf_path = psf_temp.name
+        
+        try:
+            # Calculate dipole using the analyzer
+            dipole_data = toxin_analyzer.calculate_dipole_moment_with_psf(pdb_path, psf_path)
+            
+            return jsonify({
+                'success': True,
+                'dipole': dipole_data
+            })
+            
+        finally:
+            # Clean up temporary files
+            os.unlink(pdb_path)
+            if psf_path:
+                os.unlink(psf_path)
+                
+    except Exception as e:
+        print(f"Error calculating dipole from DB: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 

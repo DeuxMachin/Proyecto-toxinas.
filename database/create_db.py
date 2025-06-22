@@ -67,6 +67,7 @@ def create_database():
         ic50_value REAL,
         ic50_unit TEXT,
         pdb_blob BLOB,
+        psf_blob BLOB,
         pdb_download_link TEXT,
         graph_full_structure BLOB,
         graph_beta_hairpin BLOB,

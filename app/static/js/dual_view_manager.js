@@ -1,12 +1,13 @@
 class DualViewManager {
     constructor() {
         this.currentStructureView = 'molstar';
-        this.isShowingLoadedStructure = false;
-        this.dipoleVisible = false;
+        this.dipoleCalculated = false;
         this.currentDatabaseProtein = null;
-        this.loadedStructureInfo = null;
+        this.currentDipoleData = null;
+        this.currentAnalysisView = null; // 'graph' o 'dipole'
         
         this.initializeEventListeners();
+        this.updatePy3DmolButtonState();
     }
 
     initializeEventListeners() {
@@ -15,38 +16,111 @@ class DualViewManager {
             this.switchStructureView('molstar');
         });
         
-        document.getElementById('switch-to-py3dmol').addEventListener('click', () => {
-            this.switchStructureView('py3dmol');
-        });
-        
-        // Sync structure button
-        document.getElementById('sync-structure-btn').addEventListener('click', () => {
-            this.syncWithDatabaseProtein();
+        const py3dmolBtn = document.getElementById('switch-to-py3dmol');
+        py3dmolBtn.addEventListener('click', () => {
+            if (this.dipoleCalculated) {
+                this.switchStructureView('py3dmol');
+            }
         });
 
-        // Analysis toggle functionality
+        // Analysis toggle functionality - Análisis del grafo
         const toggleAnalysisBtn = document.getElementById('toggle-analysis');
         const detailedAnalysis = document.getElementById('detailed-analysis');
         
         if (toggleAnalysisBtn && detailedAnalysis) {
             toggleAnalysisBtn.addEventListener('click', () => {
-                const isVisible = detailedAnalysis.style.display !== 'none';
-                
-                if (isVisible) {
-                    detailedAnalysis.style.display = 'none';
-                    toggleAnalysisBtn.innerHTML = '📈 Mostrar Análisis Detallado <span class="toggle-icon">▼</span>';
-                    toggleAnalysisBtn.classList.remove('expanded');
-                } else {
-                    detailedAnalysis.style.display = 'block';
-                    detailedAnalysis.classList.add('show');
-                    toggleAnalysisBtn.innerHTML = '📊 Ocultar Análisis Detallado <span class="toggle-icon">▲</span>';
-                    toggleAnalysisBtn.classList.add('expanded');
-                }
+                this.toggleAnalysisView('graph');
+            });
+        }
+
+        // Dipole analysis toggle functionality
+        const toggleDipoleBtn = document.getElementById('toggle-dipole-analysis');
+        const dipoleCalculations = document.getElementById('dipole-calculations');
+        
+        if (toggleDipoleBtn && dipoleCalculations) {
+            toggleDipoleBtn.addEventListener('click', () => {
+                this.toggleAnalysisView('dipole');
             });
         }
     }
 
+    toggleAnalysisView(viewType) {
+        const detailedAnalysis = document.getElementById('detailed-analysis');
+        const dipoleCalculations = document.getElementById('dipole-calculations');
+        const toggleAnalysisBtn = document.getElementById('toggle-analysis');
+        const toggleDipoleBtn = document.getElementById('toggle-dipole-analysis');
+
+        if (this.currentAnalysisView === viewType) {
+            // Si es la misma vista, ocultarla
+            this.hideAllAnalysisViews();
+            this.currentAnalysisView = null;
+        } else {
+            // Cambiar a nueva vista
+            this.hideAllAnalysisViews();
+            
+            if (viewType === 'graph') {
+                detailedAnalysis.style.display = 'block';
+                detailedAnalysis.classList.add('show');
+                toggleAnalysisBtn.innerHTML = '📊 Ocultar Análisis Detallado <span class="toggle-icon">▲</span>';
+                toggleAnalysisBtn.classList.add('expanded');
+                
+                // Reset dipole button
+                if (toggleDipoleBtn) {
+                    toggleDipoleBtn.innerHTML = '🧬 Mostrar Cálculos Dipolo <span class="toggle-icon">▼</span>';
+                    toggleDipoleBtn.classList.remove('expanded');
+                }
+                
+            } else if (viewType === 'dipole') {
+                dipoleCalculations.style.display = 'block';
+                dipoleCalculations.classList.add('show');
+                toggleDipoleBtn.innerHTML = '🧬 Ocultar Cálculos Dipolo <span class="toggle-icon">▲</span>';
+                toggleDipoleBtn.classList.add('expanded');
+                
+                // Reset graph button
+                toggleAnalysisBtn.innerHTML = '📈 Mostrar Análisis Detallado <span class="toggle-icon">▼</span>';
+                toggleAnalysisBtn.classList.remove('expanded');
+            }
+            
+            this.currentAnalysisView = viewType;
+        }
+    }
+
+    hideAllAnalysisViews() {
+        const detailedAnalysis = document.getElementById('detailed-analysis');
+        const dipoleCalculations = document.getElementById('dipole-calculations');
+        const toggleAnalysisBtn = document.getElementById('toggle-analysis');
+        const toggleDipoleBtn = document.getElementById('toggle-dipole-analysis');
+
+        // Hide all analysis views
+        if (detailedAnalysis) {
+            detailedAnalysis.style.display = 'none';
+            detailedAnalysis.classList.remove('show');
+        }
+        
+        if (dipoleCalculations) {
+            dipoleCalculations.style.display = 'none';
+            dipoleCalculations.classList.remove('show');
+        }
+
+        // Reset all buttons
+        if (toggleAnalysisBtn) {
+            toggleAnalysisBtn.innerHTML = '📈 Mostrar Análisis Detallado <span class="toggle-icon">▼</span>';
+            toggleAnalysisBtn.classList.remove('expanded');
+        }
+        
+        if (toggleDipoleBtn) {
+            toggleDipoleBtn.innerHTML = '🧬 Mostrar Cálculos Dipolo <span class="toggle-icon">▼</span>';
+            toggleDipoleBtn.classList.remove('expanded');
+        }
+    }
+
     switchStructureView(viewType) {
+        // Solo permitir cambio a py3Dmol si el dipolo está calculado
+        if (viewType === 'py3dmol' && !this.dipoleCalculated) {
+            console.log("Cannot switch to py3Dmol: dipole not calculated");
+            return;
+        }
+
         // Update active button
         document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById(`switch-to-${viewType}`).classList.add('active');
@@ -65,6 +139,10 @@ class DualViewManager {
                 break;
             case 'py3dmol':
                 targetViewer = document.getElementById('py3dmol-dipole-viewer');
+                // Si cambiamos a py3Dmol y el dipolo está calculado, asegurarse de que se muestre
+                if (this.dipoleCalculated && this.currentDipoleData) {
+                    setTimeout(() => this.ensureDipoleVisible(), 100);
+                }
                 break;
         }
 
@@ -75,6 +153,23 @@ class DualViewManager {
 
         this.currentStructureView = viewType;
         console.log(`Switched to ${viewType} view`);
+    }
+
+    updatePy3DmolButtonState() {
+        const py3dmolBtn = document.getElementById('switch-to-py3dmol');
+        if (py3dmolBtn) {
+            if (this.dipoleCalculated) {
+                py3dmolBtn.disabled = false;
+                py3dmolBtn.style.opacity = '1';
+                py3dmolBtn.style.cursor = 'pointer';
+                py3dmolBtn.title = 'Ver estructura con dipolo en py3Dmol';
+            } else {
+                py3dmolBtn.disabled = true;
+                py3dmolBtn.style.opacity = '0.5';
+                py3dmolBtn.style.cursor = 'not-allowed';
+                py3dmolBtn.title = 'Calcule el dipolo primero para habilitar esta vista';
+            }
+        }
     }
 
     updateStructureLabel(text) {
@@ -95,155 +190,135 @@ class DualViewManager {
     onDatabaseProteinSelected(group, id, name) {
         this.currentDatabaseProtein = { group, id, name };
         
+        // Reset dipole state when changing protein
+        this.resetDipoleState();
+        
         // Update graph analysis label
         this.updateGraphAnalysisLabel(name || `${group}_${id}`);
         
-        // If not showing loaded structure, sync the 3D view
-        if (!this.isShowingLoadedStructure) {
-            this.updateStructureLabel(`Base de datos: ${name || `${group}_${id}`}`);
-        }
-    }
-
-    // Called when a local PDB is loaded
-    onLocalStructureLoaded(filename) {
-        this.loadedStructureInfo = { filename };
-        this.isShowingLoadedStructure = true;
-        
         // Update structure label
-        this.updateStructureLabel(`Archivo local: ${filename}`);
+        this.updateStructureLabel(`Base de datos: ${name || `${group}_${id}`}`);
         
-        // Enable PSF and dipole buttons
-        document.getElementById('load-psf-btn').disabled = false;
+        // Show/hide dipole button based on group
+        const dipoleToggleBtn = document.getElementById('toggle-dipole-analysis');
+        const dipoleStatusContainer = document.getElementById('dipole-status-container');
         
-        console.log(`Local structure loaded: ${filename}`);
-    }
-
-    // Called when PSF is loaded
-    onPSFLoaded(filename) {
-        document.getElementById('toggle-dipole').disabled = false;
-        console.log(`PSF loaded: ${filename}`);
-    }
-
-    // Sync 3D view with currently selected database protein
-    async syncWithDatabaseProtein() {
-        if (!this.currentDatabaseProtein) {
-            alert('No hay proteína seleccionada en la base de datos');
-            return;
-        }
-
-        try {
-            // Load the database protein in the 3D viewer
-            await this.loadDatabaseProteinIn3D(
-                this.currentDatabaseProtein.group, 
-                this.currentDatabaseProtein.id
-            );
-            
-            this.isShowingLoadedStructure = false;
-            this.updateStructureLabel(`Base de datos: ${this.currentDatabaseProtein.name || `${this.currentDatabaseProtein.group}_${this.currentDatabaseProtein.id}`}`);
-            
-            // Reset dipole and local file controls
-            this.resetDipoleControls();
-            
-        } catch (error) {
-            console.error('Error syncing with database protein:', error);
-            alert('Error al sincronizar con la proteína de la base de datos');
-        }
-    }
-
-    async loadDatabaseProteinIn3D(group, id) {
-        // Use the same loading logic as in viewer.js
-        try {
-            await window.molstarAnalyzer.plugin.plugin?.clear?.();
-            await window.molstarAnalyzer.plugin.resetCamera?.();
-            await window.molstarAnalyzer.plugin.resetStructure?.();
-        } catch (clearError) {
-            // Ignore clearing errors
-        }
-
-        const res = await fetch(`/get_pdb/${group}/${id}`);
-        if (!res.ok) {
-            throw new Error(`Error HTTP: ${res.status}`);
-        }
-        
-        const pdbText = await res.text();
-        if (!pdbText || !pdbText.includes("ATOM")) {
-            throw new Error("PDB inválido o vacío");
-        }
-
-        const blob = new Blob([pdbText], { type: 'chemical/x-pdb' });
-        const blobUrl = URL.createObjectURL(blob);
-        
-        try {
-            await window.molstarAnalyzer.plugin.loadStructureFromUrl(blobUrl, 'pdb');
-        } finally {
-            URL.revokeObjectURL(blobUrl);
-        }
-    }
-
-    // Handle dipole visualization
-    async showDipole(dipoleData) {
-        try {
-            // Try py3Dmol first (best for molecular visualization)
-            if (this.currentStructureView === 'py3dmol') {
-                await window.molstarAnalyzer.showDipoleInPy3Dmol(dipoleData);
-            } else {
-                // Mol* view - try to visualize dipole
-                await window.molstarAnalyzer.visualizeDipoleVector(dipoleData);
-            }
-            
-            this.dipoleVisible = true;
-            this.updateDipoleButton(true);
-            
-        } catch (error) {
-            console.error("Error showing dipole:", error);
-            throw error;
-        }
-    }
-
-    async hideDipole() {
-        try {
-            await window.molstarAnalyzer.removeDipoleVector();
-            this.dipoleVisible = false;
-            this.updateDipoleButton(false);
-        } catch (error) {
-            console.error("Error hiding dipole:", error);
-            throw error;
-        }
-    }
-
-    updateDipoleButton(visible) {
-        const toggleBtn = document.getElementById('toggle-dipole');
-        if (toggleBtn) {
-            if (visible) {
-                toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ocultar Dipolo';
-            } else {
-                toggleBtn.innerHTML = '<i class="fas fa-arrow-up"></i> Mostrar Dipolo';
+        if (group === 'nav1_7') {
+            if (dipoleToggleBtn) dipoleToggleBtn.style.display = 'block';
+            if (dipoleStatusContainer) dipoleStatusContainer.style.display = 'flex';
+        } else {
+            if (dipoleToggleBtn) dipoleToggleBtn.style.display = 'none';
+            if (dipoleStatusContainer) dipoleStatusContainer.style.display = 'none';
+            // Hide dipole analysis if it's currently shown
+            if (this.currentAnalysisView === 'dipole') {
+                this.hideAllAnalysisViews();
+                this.currentAnalysisView = null;
             }
         }
     }
 
-    resetDipoleControls() {
-        // Reset dipole button
-        document.getElementById('toggle-dipole').disabled = true;
-        this.updateDipoleButton(false);
+    // Called when dipole calculation is completed
+    onDipoleCalculated(dipoleData) {
+        this.currentDipoleData = dipoleData;
+        this.dipoleCalculated = true;
+        this.updatePy3DmolButtonState();
         
-        // Hide dipole info
-        document.getElementById('dipole-info').style.display = 'none';
+        // Update dipole details in the analysis panel
+        this.updateDipoleDetails(dipoleData);
         
-        // Reset file upload buttons
-        const loadPdbBtn = document.getElementById('load-pdb-btn');
-        const loadPsfBtn = document.getElementById('load-psf-btn');
+        // Automatically create py3Dmol visualization with dipole
+        this.createPy3DmolWithDipole();
+    }
+
+    // Update dipole details in the analysis panel
+    updateDipoleDetails(dipoleData) {
+        // Update detailed dipole information
+        document.getElementById('dipole-magnitude-detail').textContent = 
+            dipoleData.magnitude.toFixed(3);
         
-        loadPdbBtn.innerHTML = '<i class="fas fa-upload"></i> Cargar PDB';
-        loadPdbBtn.style.background = '';
-        loadPdbBtn.disabled = false;
+        document.getElementById('dipole-angle-z-detail').textContent = 
+            dipoleData.angle_with_z_axis.degrees.toFixed(1);
         
-        loadPsfBtn.innerHTML = '<i class="fas fa-upload"></i> Cargar PSF';
-        loadPsfBtn.style.background = '';
-        loadPsfBtn.disabled = true;
+        document.getElementById('dipole-direction-detail').textContent = 
+            `[${dipoleData.normalized.map(x => x.toFixed(3)).join(', ')}]`;
         
-        this.dipoleVisible = false;
-        this.loadedStructureInfo = null;
+        document.getElementById('dipole-center-detail').textContent = 
+            `[${dipoleData.center_of_mass.map(x => x.toFixed(2)).join(', ')}]`;
+        
+        document.getElementById('dipole-endpoint-detail').textContent = 
+            `[${dipoleData.end_point.map(x => x.toFixed(2)).join(', ')}]`;
+
+        // Update technical information
+        document.getElementById('dipole-method').textContent = 
+            dipoleData.method || 'Cálculo PSF/BioPython';
+        
+        document.getElementById('dipole-vector-raw').textContent = 
+            `[${dipoleData.vector.map(x => x.toFixed(3)).join(', ')}]`;
+        
+        document.getElementById('dipole-angle-radians').textContent = 
+            dipoleData.angle_with_z_axis.radians.toFixed(4);
+        
+        document.getElementById('dipole-protein-name').textContent = 
+            this.currentDatabaseProtein ? this.currentDatabaseProtein.name : 'Proteína actual';
+    }
+
+    // Reset dipole state when changing proteins
+    resetDipoleState() {
+        this.dipoleCalculated = false;
+        this.currentDipoleData = null;
+        this.updatePy3DmolButtonState();
+        
+        // Switch back to Mol* if currently on py3Dmol
+        if (this.currentStructureView === 'py3dmol') {
+            this.switchStructureView('molstar');
+        }
+
+        // Hide dipole analysis if it's currently shown
+        if (this.currentAnalysisView === 'dipole') {
+            this.hideAllAnalysisViews();
+            this.currentAnalysisView = null;
+        }
+    }
+
+    // Create py3Dmol visualization with dipole automatically
+    async createPy3DmolWithDipole() {
+        try {
+            if (!this.currentDipoleData || !this.currentDatabaseProtein) {
+                throw new Error("Missing dipole data or protein information");
+            }
+
+            // Get PDB text for py3Dmol
+            const pdbResponse = await fetch(`/get_pdb/${this.currentDatabaseProtein.group}/${this.currentDatabaseProtein.id}`);
+            const pdbText = await pdbResponse.text();
+            
+            // Create py3Dmol visualization with dipole
+            await window.molstarAnalyzer.showDipoleInPy3Dmol(this.currentDipoleData, pdbText);
+            
+            console.log("py3Dmol visualization with dipole created automatically");
+            
+        } catch (error) {
+            console.error("Error creating py3Dmol visualization:", error);
+        }
+    }
+
+    // Ensure dipole is visible when switching to py3Dmol
+    async ensureDipoleVisible() {
+        if (this.currentDipoleData && this.currentDatabaseProtein) {
+            try {
+                const pdbResponse = await fetch(`/get_pdb/${this.currentDatabaseProtein.group}/${this.currentDatabaseProtein.id}`);
+                const pdbText = await pdbResponse.text();
+                
+                await window.molstarAnalyzer.showDipoleInPy3Dmol(this.currentDipoleData, pdbText);
+                
+                // También actualizar la información mostrada
+                if (this.currentDipoleData.angle_with_z_axis) {
+                    console.log(`Dipole angle with Z-axis: ${this.currentDipoleData.angle_with_z_axis.degrees.toFixed(1)}°`);
+                }
+                
+            } catch (error) {
+                console.error("Error ensuring dipole visibility:", error);
+            }
+        }
     }
 
     // Auto-update graph when database protein changes
