@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify, request, send_file
+from flask import Blueprint, render_template, jsonify, request, send_file, make_response
 from functools import partial
 import sqlite3
 import tempfile
@@ -9,6 +9,7 @@ import csv
 import numpy as np
 import re
 import unicodedata
+import traceback
 from graphein.protein.config import ProteinGraphConfig
 from graphein.protein.graphs import construct_graph
 from graphein.protein.edges.distance import add_distance_threshold
@@ -24,6 +25,7 @@ import openpyxl
 from datetime import datetime
 import pandas as pd
 from app.utils.excel_export import generate_excel
+from app.utils.graph_segmentation import agrupar_por_segmentos_atomicos
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'graphs'))
 from graphs.graph_analysis2D import Nav17ToxinGraphAnalyzer
@@ -577,6 +579,166 @@ def export_residues_xlsx(source, pid):
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+@viewer_bp.route("/export_segments_atomicos_xlsx/<string:source>/<int:pid>")
+def export_segments_atomicos_xlsx(source, pid):
+    """
+    Exporta segmentos atómicos conectados para toxinas Nav1.7
+    Cada segmento representa una región conectada del grafo atómico
+    """
+    try:
+        # Solo permitir para Nav1.7
+        if source != "nav1_7":
+            print(f"❌ Error: Segmentación atómica solo para Nav1.7, recibido: {source}")
+            return jsonify({"error": "La segmentación atómica solo está disponible para toxinas Nav1.7"}), 400
+        
+        # Obtener parámetros
+        long_threshold = int(request.args.get('long', 5))
+        distance_threshold = float(request.args.get('threshold', 10.0))
+        granularity = request.args.get('granularity', 'atom')  # Forzar a atom para segmentación
+        
+        # Validar que la granularidad sea atómica
+        if granularity != 'atom':
+            print(f"❌ Error: Granularidad incorrecta: {granularity}")
+            return jsonify({"error": "La segmentación atómica requiere granularidad 'atom'"}), 400
+        
+        print(f"🚀 Iniciando exportación de segmentos atómicos para Nav1.7 ID: {pid}")
+        print(f"📋 Parámetros: long={long_threshold}, threshold={distance_threshold}, granularity={granularity}")
+        
+        # Obtener datos de la toxina
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT pdb_blob, peptide_code, ic50_value, ic50_unit FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            print(f"❌ Error: Toxina Nav1.7 ID {pid} no encontrada")
+            return jsonify({"error": "Toxina Nav1.7 no encontrada"}), 404
+        
+        pdb_data, toxin_name, ic50_value, ic50_unit = result
+        
+        if not toxin_name:
+            toxin_name = f"Nav1.7_{pid}"
+        
+        print(f"📊 Procesando {toxin_name}")
+        
+        # Limpiar nombre para archivo
+        normalized_name = unicodedata.normalize('NFKD', toxin_name)
+        clean_name = normalized_name.replace('μ', 'mu').replace('β', 'beta').replace('ω', 'omega').replace('δ', 'delta')
+        clean_name = re.sub(r'[^\w\-_]', '', clean_name, flags=re.ASCII)
+        
+        if not clean_name:
+            clean_name = f"Nav1.7_{pid}"
+        
+        print(f"📁 Nombre de archivo limpio: {clean_name}")
+        
+        # Preprocesar PDB para graphein
+        if isinstance(pdb_data, bytes):
+            pdb_content = pdb_data.decode('utf-8')
+        else:
+            pdb_content = str(pdb_data)
+        
+        # Aplicar preprocesamiento
+        processed_pdb_content = preprocess_pdb_for_graphein(pdb_content)
+        
+        # Crear archivo temporal
+        with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as temp_file:
+            temp_file.write(processed_pdb_content.encode('utf-8'))
+            temp_path = temp_file.name
+        
+        print(f"📄 Archivo temporal creado: {temp_path}")
+        
+        try:
+            # Construir grafo atómico
+            cfg = ProteinGraphConfig(
+                granularity="atom",
+                edge_construction_functions=[
+                    partial(add_distance_threshold,
+                            long_interaction_threshold=long_threshold,
+                            threshold=distance_threshold)
+                ]
+            )
+            
+            print(f"🔬 Construyendo grafo atómico...")
+            G = construct_graph(config=cfg, pdb_code=None, path=temp_path)
+            print(f"✅ Grafo construido: {G.number_of_nodes()} nodos, {G.number_of_edges()} aristas")
+            
+            if G.number_of_nodes() == 0:
+                print(f"❌ Error: El grafo no tiene nodos")
+                return jsonify({"error": "El grafo construido está vacío"}), 500
+            
+            # Aplicar segmentación atómica
+            print(f"🧩 Aplicando segmentación atómica...")
+            df_segmentos = agrupar_por_segmentos_atomicos(G, granularity)
+            
+            if df_segmentos.empty:
+                print(f"❌ Error: No se generaron segmentos")
+                return jsonify({"error": "No se pudieron generar segmentos atómicos"}), 500
+            
+            # Agregar información de la toxina
+            df_segmentos.insert(0, 'Toxina', toxin_name)
+            
+            print(f"📈 Segmentación completada: {len(df_segmentos)} segmentos generados")
+            print(f"📊 Columnas del DataFrame: {list(df_segmentos.columns)}")
+            print(f"📊 Primeras 3 filas:\n{df_segmentos.head(3)}")
+            
+            # Crear metadatos
+            metadata = {
+                'Toxina': toxin_name,
+                'Fuente': 'Nav1.7',
+                'ID': pid,
+                'Tipo_Analisis': 'Segmentación Atómica',
+                'Granularidad': 'atom',
+                'Umbral_Distancia': distance_threshold,
+                'Umbral_Interaccion_Larga': long_threshold,
+                'Total_Atomos_Grafo': G.number_of_nodes(),
+                'Total_Conexiones_Grafo': G.number_of_edges(),
+                'Densidad_Grafo': round(nx.density(G), 6),
+                'Numero_Segmentos': len(df_segmentos),
+                'Fecha_Exportacion': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            # Agregar datos de IC50 si están disponibles
+            if ic50_value:
+                metadata['IC50_Original'] = ic50_value
+                metadata['Unidad_IC50'] = ic50_unit
+            
+            # Generar nombre de archivo
+            filename_prefix = f"Nav1.7-{clean_name}-Segmentos-Atomicos"
+            
+            print(f"💾 Generando Excel: {filename_prefix}")
+            
+            # Generar Excel con el DataFrame de segmentos
+            excel_data, excel_filename = generate_excel(df_segmentos, filename_prefix, metadata=metadata)
+            
+            print(f"📁 Archivo Excel generado: {excel_filename}")
+            
+            # Retornar el archivo
+            return send_file(
+                excel_data,
+                as_attachment=True,
+                download_name=excel_filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+        
+        finally:
+            # Limpiar archivo temporal
+            try:
+                os.unlink(temp_path)
+                print("🗑️  Archivo temporal eliminado")
+            except Exception as cleanup_error:
+                print(f"⚠️  Error limpiando archivo temporal: {cleanup_error}")
+            
+    except Exception as e:
+        print(f"❌ Error en export_segments_atomicos_xlsx: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @viewer_bp.route("/export_family_xlsx/<string:family_prefix>")
 def export_family_xlsx(family_prefix):
     try:
@@ -1214,3 +1376,60 @@ def calculate_dipole_from_db(source, pid):
             'error': str(e)
         }), 500
 
+@viewer_bp.route('/export_segment_nodes/<source>/<int:pid>')
+def export_segment_nodes(source, pid):
+    try:
+        long_val = int(request.args.get('long', 5))
+        threshold = float(request.args.get('threshold', 10.0))
+        granularity = 'atom'  # obligatorio para nodos atómicos
+
+        # Obtener PDB
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        if source == "toxinas":
+            cursor.execute("SELECT pdb_file, peptide_name FROM Peptides WHERE peptide_id = ?", (pid,))
+        elif source == "nav1_7":
+            cursor.execute("SELECT pdb_blob, peptide_code FROM Nav1_7_InhibitorPeptides WHERE id = ?", (pid,))
+        else:
+            return jsonify({"error": "Fuente inválida"}), 400
+        result = cursor.fetchone()
+        conn.close()
+        if not result:
+            return jsonify({"error": "PDB no encontrado"}), 404
+
+        pdb_data, toxin_name = result
+        clean_name = re.sub(r'[^\w]', '_', toxin_name)[:31]
+
+        with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as temp_file:
+            temp_file.write(pdb_data if isinstance(pdb_data, bytes) else pdb_data.encode('utf-8'))
+            pdb_path = temp_file.name
+
+        # Construcción del grafo y segmentación
+        from app.utils.graph_segmentation import generate_segment_groupings
+        df_segmentos = generate_segment_groupings(
+            pdb_path=pdb_path,
+            source=source,
+            protein_id=pid,
+            long_range=long_val,
+            threshold=threshold,
+            granularity=granularity,
+            toxin_name=toxin_name
+        )
+
+        # Exportar a XLSX
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_segmentos.to_excel(writer, index=False, sheet_name=clean_name[:31])
+        output.seek(0)
+
+        filename = f"SegmentosAgrupados_{clean_name}.xlsx"
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        print(f"❌ Error en export_segment_nodes: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500

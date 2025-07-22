@@ -235,6 +235,19 @@
             <div class="analysis-section">
                 <h5>Exportar Datos Completos</h5>
                 <div class="export-controls">
+                    <!-- Selector de tipo de exportación -->
+                    <div class="export-type-selection">
+                        <label for="export-type-selector">Tipo de análisis para exportar:</label>
+                        <select id="export-type-selector" class="export-type-selector">
+                            <option value="residues">Análisis por Residuos</option>
+                            <option value="segments_atomicos">Segmentación Atómica (Solo Nav1.7)</option>
+                        </select>
+                        <div class="tooltip">
+                            <span class="tooltip-icon">ℹ</span>
+                            <span class="tooltip-text">Segmentación Atómica: agrupa átomos conectados en regiones lógicas del grafo (solo para Nav1.7 con granularidad atómica)</span>
+                        </div>
+                    </div>
+                    
                     <!-- Exportación individual -->
                     <button id="export-csv-btn" class="export-button">
                         <span class="button-text">📊 Descargar Excel de Residuos Individuales</span>

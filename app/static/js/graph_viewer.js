@@ -233,11 +233,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         const exportFamilyBtn = document.getElementById('export-family-csv-btn');
         const wtFamilySelector = document.getElementById('wt-family-selector');
         const exportWtBtn = document.getElementById('export-wt-comparison-btn');
+        const exportTypeSelector = document.getElementById('export-type-selector');
         
         if (!exportBtn) return;
         
         const buttonText = exportBtn.querySelector('.button-text');
         const loadingText = exportBtn.querySelector('.loading-text');
+        
+        // Function to update button text based on export type
+        function updateExportButtonText() {
+            if (!exportTypeSelector || !buttonText) return;
+            
+            const exportType = exportTypeSelector.value;
+            if (exportType === 'segments_atomicos') {
+                buttonText.textContent = '🧩 Descargar Excel de Segmentos Atómicos';
+            } else {
+                buttonText.textContent = '📊 Descargar Excel de Residuos Individuales';
+            }
+        }
+        
+        // Update button text when export type changes
+        if (exportTypeSelector) {
+            exportTypeSelector.addEventListener('change', updateExportButtonText);
+            // Set initial text
+            updateExportButtonText();
+        }
         
         // INDIVIDUAL EXPORT with visual feedback
         exportBtn.addEventListener('click', async () => {
@@ -256,6 +276,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const distValue = distInput.value;
                 const granularity = granularityToggle.checked ? 'atom' : 'CA';
                 
+                // Get export type from selector
+                const exportTypeSelector = document.getElementById('export-type-selector');
+                const exportType = exportTypeSelector ? exportTypeSelector.value : 'residues';
+                
+                // Validar que la segmentación atómica sea solo para Nav1.7 y granularidad atom
+                if (exportType === 'segments_atomicos') {
+                    if (currentProteinGroup !== 'nav1_7') {
+                        exportFeedback.showError('La segmentación atómica solo está disponible para toxinas Nav1.7');
+                        return;
+                    }
+                    if (granularity !== 'atom') {
+                        exportFeedback.showError('La segmentación atómica requiere granularidad "Átomos". Por favor actívela en los controles del grafo.');
+                        return;
+                    }
+                }
+                
                 // Get toxin name
                 const nameResponse = await fetch(`/get_toxin_name/${currentProteinGroup}/${currentProteinId}`);
                 const nameData = await nameResponse.json();
@@ -267,14 +303,28 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const cleanName = toxinName.replace(/[^\w\-_]/g, '');
                 
                 let filename;
-                if (currentProteinGroup === "nav1_7") {
-                    filename = `Nav1.7-${cleanName}.xlsx`; // Changed from .csv to .xlsx
+                let url;
+                
+                if (exportType === 'segments_atomicos') {
+                    // Segmentación atómica (solo Nav1.7)
+                    filename = `Nav1.7-${cleanName}-Segmentos-Atomicos.xlsx`;
+                    url = `/export_segments_atomicos_xlsx/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}`;
+                    
+                    // Update button text for atomic segmentation
+                    const buttonText = exportBtn.querySelector('.button-text');
+                    buttonText.textContent = '🧩 Descargando Segmentos Atómicos...';
                 } else {
-                    filename = `Toxinas-${cleanName}.xlsx`; // Changed from .csv to .xlsx
+                    // Análisis por residuos (normal)
+                    const exportTypeText = 'Residuos';
+                    if (currentProteinGroup === "nav1_7") {
+                        filename = `Nav1.7-${cleanName}-${exportTypeText}.xlsx`;
+                    } else {
+                        filename = `Toxinas-${cleanName}-${exportTypeText}.xlsx`;
+                    }
+                    url = `/export_residues_xlsx/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}&export_type=residues`;
                 }
                 
-                // Use the new Excel endpoint
-                const url = `/export_residues_xlsx/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}`;
+                console.log(`🚀 Exporting ${exportType} for ${toxinName} using URL: ${url}`);
                 
                 // Simulate delay to show progress
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -296,6 +346,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 exportBtn.disabled = false;
                 buttonText.style.display = 'inline';
                 loadingText.style.display = 'none';
+                // Restore original button text
+                updateExportButtonText();
             }
         });
         
