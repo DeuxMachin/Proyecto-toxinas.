@@ -6,6 +6,7 @@ Este módulo maneja todas las exportaciones a Excel y CSV.
 from flask import Blueprint, jsonify, request, send_file
 import traceback
 import pandas as pd
+import networkx as nx
 
 from app.services.database_service import DatabaseService
 from app.services.pdb_processor import PDBProcessor, FileUtils
@@ -169,7 +170,7 @@ def export_segments_atomicos_xlsx(source, pid):
                 'Umbral_Interaccion_Larga': long_threshold,
                 'Total_Atomos_Grafo': G.number_of_nodes(),
                 'Total_Conexiones_Grafo': G.number_of_edges(),
-                'Densidad_Grafo': round(G.density(), 6),
+                'Densidad_Grafo': round(nx.density(G), 6),
                 'Numero_Segmentos': len(df_segmentos),
                 'Fecha_Exportacion': pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
             }
@@ -308,7 +309,6 @@ def export_family_xlsx(family_prefix):
                             processed_count += 1
                     
                     # Agregar información del grafo a metadatos
-                    import networkx as nx
                     metadata[f'Nodos_en_{peptide_code}'] = G.number_of_nodes()
                     metadata[f'Aristas_en_{peptide_code}'] = G.number_of_edges()
                     metadata[f'Densidad_en_{peptide_code}'] = round(nx.density(G), 6)
