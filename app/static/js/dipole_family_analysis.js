@@ -1,0 +1,514 @@
+// filepath: app/static/js/dipole_family_analysis.js
+class DipoleFamilyAnalyzer {
+    constructor() {
+        console.log('🚀 DipoleFamilyAnalyzer iniciado');
+        console.log('🔍 Elementos encontrados:', {
+            familySelector: !!document.getElementById('familySelector'),
+            visualizeFamilyBtn: !!document.getElementById('visualizeFamilyBtn'),
+            loadFamilyDataBtn: !!document.getElementById('loadFamilyDataBtn'),
+            familyInfo: !!document.getElementById('familyInfo'),
+            familyInfoText: !!document.getElementById('familyInfoText'),
+            visualizationArea: !!document.getElementById('visualizationArea'),
+            statisticsArea: !!document.getElementById('statisticsArea'),
+            selectedFamilyTitle: !!document.getElementById('selectedFamilyTitle'),
+            loadingSpinner: !!document.getElementById('loadingSpinner'),
+            visualizationPlaceholder: !!document.getElementById('visualizationPlaceholder'),
+            peptideList: !!document.getElementById('peptideList'),
+            visualizationGrid: !!document.getElementById('visualizationGrid'),
+        });
+        
+        this.familySelector = document.getElementById('familySelector');
+        this.visualizeFamilyBtn = document.getElementById('visualizeFamilyBtn');
+        this.loadFamilyDataBtn = document.getElementById('loadFamilyDataBtn');
+        this.familyInfo = document.getElementById('familyInfo');
+        this.familyInfoText = document.getElementById('familyInfoText');
+        this.visualizationArea = document.getElementById('visualizationArea');
+        this.statisticsArea = document.getElementById('statisticsArea');
+        this.selectedFamilyTitle = document.getElementById('selectedFamilyTitle');
+        this.loadingSpinner = document.getElementById('loadingSpinner');
+        this.visualizationPlaceholder = document.getElementById('visualizationPlaceholder');
+        
+        // Nuevo elemento para mostrar péptidos
+        this.peptideList = document.getElementById('peptideList');
+        this.visualizationGrid = document.getElementById('visualizationGrid');
+        
+        this.currentFamilyData = null;
+        
+        this.loadFamilyOptions();
+        this.initializeEventListeners();
+        
+    }
+
+    initializeEventListeners() {
+        this.familySelector.addEventListener('change', () => {
+            this.onFamilySelected();
+        });
+        
+        this.visualizeFamilyBtn.addEventListener('click', () => {
+            this.visualizeFamily();
+        });
+    }
+    
+
+    async loadFamilyOptions() {
+        try {
+            console.log('🔄 Iniciando carga de familias...');
+            
+            const response = await fetch('/api/families');
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response headers:', response.headers);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('📦 Response data:', data);
+            
+            if (data.success) {
+                console.log('✅ Familias encontradas:', data.families.length);
+                
+                if (data.families.length === 0) {
+                    console.warn('⚠️ No se encontraron familias en la respuesta');
+                    return;
+                }
+                
+                data.families.forEach((family, index) => {
+                    console.log(`👨‍👩‍👧‍👦 Procesando familia ${index + 1}:`, family);
+                    const option = document.createElement('option');
+                    option.value = family.value;
+                    option.textContent = `${family.text} (${family.count} péptidos)`;
+                    option.dataset.count = family.count;
+                    this.familySelector.appendChild(option);
+                });
+                
+                console.log('✅ Todas las familias procesadas correctamente');
+            } else {
+                console.error('❌ Error en response:', data.error);
+                alert(`Error cargando familias: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('💥 Error cargando familias:', error);
+            alert(`Error de conexión: ${error.message}`);
+        }
+    }
+
+    async onFamilySelected() {
+        const selectedFamily = this.familySelector.value;
+        const selectedText = this.familySelector.selectedOptions[0].textContent;
+        
+        if (selectedFamily) {
+            // Mostrar información de la familia
+            this.familyInfoText.textContent = `Familia seleccionada: ${selectedText}`;
+            this.familyInfo.style.display = 'block';
+            
+            // Cargar péptidos de la familia
+            await this.loadFamilyPeptides(selectedFamily);
+            
+            // Solo habilitar el botón de visualización
+            this.visualizeFamilyBtn.disabled = false;
+            
+            // Actualizar título
+            this.selectedFamilyTitle.textContent = selectedText;
+        } else {
+            this.familyInfo.style.display = 'none';
+            this.peptideList.style.display = 'none';
+            this.visualizeFamilyBtn.disabled = true;
+        }
+    }
+
+    async loadFamilyPeptides(familyName) {
+        try {
+            this.showLoading(true, 'Cargando péptidos de la familia...');
+            
+            const response = await fetch(`/api/family-peptides/${familyName}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayPeptideList(data.data);
+            }
+        } catch (error) {
+            console.error('Error cargando péptidos:', error);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    displayPeptideList(familyData) {
+        const { family_name, family_type, total_count } = familyData;
+        
+        let listHTML = `
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-list me-2"></i>Péptidos de la Familia (${total_count} total)
+                    </h6>
+                </div>
+                <div class="card-body">
+        `;
+        
+        // Manejar familia β-TRTX (múltiples originales)
+        if (family_type === 'multiple_originals') {
+            const { all_peptides } = familyData;
+            
+            listHTML += `
+                <div class="alert alert-info">
+                    <strong><i class="fas fa-info-circle me-2"></i>Familia β-TRTX:</strong><br>
+                    <span class="text-muted">Esta familia contiene múltiples péptidos originales relacionados.</span>
+                </div>
+                <div class="mt-3">
+                    <strong><i class="fas fa-dna me-2"></i>Péptidos de la Familia (${total_count}):</strong>
+                    <ul class="list-group list-group-flush mt-2">
+            `;
+            
+            all_peptides.forEach(peptide => {
+                listHTML += `
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="font-monospace fw-bold">${peptide.peptide_code}</span>
+                        </div>
+                        <small class="text-muted">
+                            IC50: ${peptide.ic50_value} ${peptide.ic50_unit}
+                        </small>
+                    </li>
+                `;
+            });
+            
+            listHTML += `
+                    </ul>
+                </div>
+            `;
+        } 
+        // Manejar familias con original + modificados
+        else if (family_type === 'original_plus_modified') {
+            const { original_peptide, modified_peptides, modified_count } = familyData;
+            
+            // Péptido original
+            if (original_peptide) {
+                listHTML += `
+                    <div class="alert alert-primary">
+                        <strong><i class="fas fa-star me-2"></i>Péptido Original:</strong><br>
+                        <span class="font-monospace">${original_peptide.peptide_code}</span>
+                        <small class="text-muted ms-2">
+                            (IC50: ${original_peptide.ic50_value} ${original_peptide.ic50_unit})
+                        </small>
+                    </div>
+                `;
+            }
+            
+            // Péptidos modificados
+            if (modified_peptides.length > 0) {
+                listHTML += `
+                    <div class="mt-3">
+                        <strong><i class="fas fa-flask me-2"></i>Péptidos Modificados (${modified_count}):</strong>
+                        <ul class="list-group list-group-flush mt-2">
+                `;
+                
+                modified_peptides.forEach(peptide => {
+                    listHTML += `
+                        <li class="list-group-item d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="font-monospace">${peptide.peptide_code}</span>
+                            </div>
+                            <small class="text-muted">
+                                IC50: ${peptide.ic50_value} ${peptide.ic50_unit}
+                            </small>
+                        </li>
+                    `;
+                });
+                
+                listHTML += `
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+        
+        listHTML += `
+                </div>
+            </div>
+        `;
+        
+        this.peptideList.innerHTML = listHTML;
+        this.peptideList.style.display = 'block';
+    }
+
+    async loadFamilyData() {
+        const selectedFamily = this.familySelector.value;
+        
+        if (!selectedFamily) return;
+        
+        try {
+            this.showLoading(true, 'Cargando datos de dipolo...');
+            
+            const response = await fetch(`/api/family-dipoles/${selectedFamily}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.currentFamilyData = data.data;
+                this.displayFamilyStats();
+                this.visualizeFamilyBtn.innerHTML = '<i class="fas fa-eye me-2"></i>Actualizar Visualización';
+            }
+        } catch (error) {
+            console.error('Error cargando datos de familia:', error);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    async visualizeFamily() {
+
+        const selectedFamily = this.familySelector.value;
+        
+        if (!selectedFamily) return;
+        
+        try {
+            this.showLoading(true, 'Calculando dipolos de la familia...');
+            
+            // Cargar datos con dipolos calculados
+            const response = await fetch(`/api/family-dipoles/${selectedFamily}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.currentFamilyData = data.data;
+                this.createDipoleGrid(data.data.dipole_results);
+                this.displayFamilyStats();
+                
+                // Mostrar áreas de visualización y estadísticas
+                this.visualizationArea.style.display = 'block';
+                this.statisticsArea.style.display = 'block';
+            } else {
+                console.error('Error loading family dipoles:', data.error);
+            }
+        } catch (error) {
+            console.error('Error visualizing family:', error);
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    createDipoleGrid(dipoleResults) {
+        if (!dipoleResults || dipoleResults.length === 0) {
+            this.visualizationGrid.innerHTML = '<p class="text-center">No hay datos de dipolo disponibles.</p>';
+            return;
+        }
+
+        // Crear contenedor del grid
+        let gridHTML = `
+            <div class="dipole-grid-container">
+                <div class="row">
+        `;
+
+        dipoleResults.forEach((result, index) => {
+            // Crear nueva fila cada 2 elementos
+            if (index > 0 && index % 2 === 0) {
+                gridHTML += `
+                </div>
+                <div class="row mt-4">
+                `;
+            }
+
+            const dipoleData = result.dipole_data;
+            const peptideCode = result.peptide_code;
+            
+            gridHTML += `
+                <div class="col-md-6">
+                    <div class="card dipole-visualization-card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-dna me-2"></i>${peptideCode}
+                            </h6>
+                            <small class="text-muted">
+                                IC50: ${result.ic50_value} ${result.ic50_unit}
+                            </small>
+                        </div>
+                        <div class="card-body">
+                            <!-- Visualización 3D del dipolo -->
+                            <div id="dipole-viewer-${index}" class="dipole-viewer" style="height: 400px;">
+                                <div class="loading-placeholder">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    <span class="ms-2">Cargando estructura...</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Información del dipolo -->
+                            <div class="dipole-info-compact mt-3">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Magnitud:</small><br>
+                                        <strong>${dipoleData.magnitude.toFixed(3)} D</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Ángulo Z:</small><br>
+                                        <strong>${dipoleData.angle_with_z_axis.degrees.toFixed(1)}°</strong>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-12">
+                                        <small class="text-muted">Vector:</small><br>
+                                        <code class="small">[${dipoleData.vector.map(x => x.toFixed(2)).join(', ')}]</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        gridHTML += `
+                </div>
+            </div>
+        `;
+
+        // Insertar HTML en el contenedor
+        const dipoleVisualization = document.getElementById('dipoleVisualization');
+        dipoleVisualization.innerHTML = gridHTML;
+
+        // Inicializar visualizadores py3Dmol para cada toxina
+        this.initializeDipoleViewers(dipoleResults);
+    }
+
+    async initializeDipoleViewers(dipoleResults) {
+        for (let i = 0; i < dipoleResults.length; i++) {
+            const result = dipoleResults[i];
+            const viewerId = `dipole-viewer-${i}`;
+            
+            try {
+                await this.createPy3DmolViewer(viewerId, result.pdb_data, result.dipole_data);
+            } catch (error) {
+                console.error(`Error initializing viewer for ${result.peptide_code}:`, error);
+                document.getElementById(viewerId).innerHTML = `
+                    <div class="alert alert-warning">
+                        Error cargando visualización para ${result.peptide_code}
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async createPy3DmolViewer(containerId, pdbData, dipoleData) {
+        const container = document.getElementById(containerId);
+        
+        // Limpiar contenedor
+        container.innerHTML = '';
+        
+        // Crear visualizador py3Dmol
+        const viewer = $3Dmol.createViewer(container, {
+            defaultcolors: $3Dmol.rasmolElementColors
+        });
+
+        // Añadir estructura PDB
+        viewer.addModel(pdbData, "pdb");
+        
+        // Estilo de la proteína
+        viewer.setStyle({}, {
+            cartoon: {
+                color: 'spectrum',
+                opacity: 0.8
+            },
+            stick: {
+                radius: 0.2,
+                opacity: 0.6
+            }
+        });
+
+        // Añadir vector dipolar
+        this.addDipoleArrowToViewer(viewer, dipoleData);
+
+        // Renderizar
+        viewer.zoomTo();
+        viewer.render();
+
+        return viewer;
+    }
+
+    addDipoleArrowToViewer(viewer, dipoleData) {
+        const start = dipoleData.center_of_mass;
+        const end = dipoleData.end_point;
+
+        // Flecha del dipolo (roja)
+        viewer.addArrow({
+            start: { x: start[0], y: start[1], z: start[2] },
+            end: { x: end[0], y: end[1], z: end[2] },
+            radius: 1.0,
+            color: 'red',
+            opacity: 0.9
+        });
+
+        // Esfera en centro de masa
+        viewer.addSphere({
+            center: { x: start[0], y: start[1], z: start[2] },
+            radius: 1.5,
+            color: 'red',
+            opacity: 0.8
+        });
+
+        // Eje Z de referencia (azul)
+        const zAxisEnd = [start[0], start[1], start[2] + 20];
+        viewer.addArrow({
+            start: { x: start[0], y: start[1], z: start[2] },
+            end: { x: zAxisEnd[0], y: zAxisEnd[1], z: zAxisEnd[2] },
+            radius: 0.5,
+            color: 'blue',
+            opacity: 0.6
+        });
+    }
+
+    displayFamilyStats() {
+        if (!this.currentFamilyData) return;
+        
+        const summary = this.currentFamilyData.summary;
+        const errors = this.currentFamilyData.errors || [];
+        
+        document.getElementById('magnitudeStats').innerHTML = `
+            <div class="row text-center">
+                <div class="col-4">
+                    <h6 class="text-muted">Péptidos</h6>
+                    <h5 class="text-info">${summary.total_proteins}</h5>
+                </div>
+                <div class="col-4">
+                    <h6 class="text-muted">Dipolo Promedio</h6>
+                    <h5 class="text-primary">${summary.avg_magnitude.toFixed(3)} D</h5>
+                </div>
+                <div class="col-4">
+                    <h6 class="text-muted">Rango</h6>
+                    <h5 class="text-success">${summary.min_magnitude.toFixed(2)} - ${summary.max_magnitude.toFixed(2)} D</h5>
+                </div>
+            </div>
+            ${errors.length > 0 ? `
+                <div class="alert alert-warning mt-3">
+                    <small><strong>Errores de cálculo:</strong> ${errors.length} péptidos</small>
+                </div>
+            ` : ''}
+        `;
+        
+        document.getElementById('orientationStats').innerHTML = `
+            <div class="text-center">
+                <h6 class="text-muted">Análisis de Orientación</h6>
+                <p class="text-muted">Comparación de ángulos con eje Z</p>
+                <div class="mt-2">
+                    <small class="text-info">
+                        Los vectores dipolar se muestran en rojo<br>
+                        El eje Z de referencia en azul
+                    </small>
+                </div>
+            </div>
+        `;
+    }
+
+    showLoading(show, message = 'Procesando datos...') {
+        if (show) {
+            this.loadingSpinner.style.display = 'block';
+            this.visualizationPlaceholder.textContent = message;
+        } else {
+            this.loadingSpinner.style.display = 'none';
+            this.visualizationPlaceholder.textContent = 'La visualización se mostrará aquí...';
+        }
+    }
+}
+
+// Inicializar cuando se carga la página
+document.addEventListener('DOMContentLoaded', () => {
+    new DipoleFamilyAnalyzer();
+});

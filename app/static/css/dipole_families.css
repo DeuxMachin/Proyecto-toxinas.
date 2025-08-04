@@ -1,0 +1,54 @@
+/* Añadir a dipole_families.css o en el <style> del HTML */
+.dipole-grid-container {
+    max-width: 100%;
+}
+
+.dipole-visualization-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.dipole-visualization-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.dipole-viewer {
+    background: #f8f9fa;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+}
+
+.loading-placeholder {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.dipole-info-compact {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.dipole-info-compact code {
+    background: #e9ecef;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .dipole-viewer {
+        height: 300px !important;
+    }
+    
+    .dipole-grid-container .col-md-6 {
+        margin-bottom: 1rem;
+    }
+}
