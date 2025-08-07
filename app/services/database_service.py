@@ -232,6 +232,43 @@ class DatabaseService:
         finally:
             conn.close()
     
+    def get_wt_toxin_data(self, peptide_code: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene datos completos de una toxina WT específica por su código.
+        
+        Args:
+            peptide_code: Código del péptido WT
+            
+        Returns:
+            Diccionario con datos completos de la toxina o None si no se encuentra
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT id, peptide_code, ic50_value, ic50_unit, pdb_blob, sequence
+                FROM Nav1_7_InhibitorPeptides 
+                WHERE peptide_code = ?
+            """, (peptide_code,))
+            
+            result = cursor.fetchone()
+            if not result:
+                return None
+            
+            toxin_id, name, ic50_value, ic50_unit, pdb_data, sequence = result
+            
+            return {
+                'id': toxin_id,
+                'name': name,
+                'ic50_value': ic50_value,
+                'ic50_unit': ic50_unit,
+                'pdb_data': pdb_data,
+                'sequence': sequence
+            }
+        finally:
+            conn.close()
+    
     def get_family_peptides(self, family_prefix: str) -> List[Dict]:
         """
         Obtiene todos los péptidos de una familia específica incluyendo el original y modificados.
