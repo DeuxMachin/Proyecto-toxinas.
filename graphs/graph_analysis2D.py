@@ -11,6 +11,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import to_rgb
 import pandas as pd
 import seaborn as sns
+import MDAnalysis as mda
 from scipy.spatial.distance import pdist, squareform
 
 # Diccionarios de propiedades fisicoquímicas relevantes para interacción con Nav1.7
@@ -199,7 +200,7 @@ class Nav17ToxinGraphAnalyzer:
             # Try MDAnalysis first if PSF is provided
             if psf_path and os.path.exists(psf_path):
                 try:
-                    import MDAnalysis as mda
+                    
                     
                     u = mda.Universe(psf_path, pdb_path)
                     protein = u.select_atoms("protein")

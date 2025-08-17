@@ -98,6 +98,8 @@ prometheus_client==0.21.1
 propcache==0.3.1
 protobuf==5.29.3
 psutil==6.1.1
+MDAnalysis==2.7.0
+numpy<2.0
 py3Dmol==2.0.0.post2
 pyarrow==19.0.0
 pydantic==2.11.4
@@ -154,3 +156,4 @@ yarl==1.20.0
 zope.event==5.0
 zope.interface==7.2
 zstandard==0.23.0
+pytest==8.3.3

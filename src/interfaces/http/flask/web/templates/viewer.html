@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Visualizador Mol*</title>
+    <!-- Estilos de Mol* -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css">
+    <!-- Dash components for graph visualization -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dash-core-components@2.0.0/dash_core_components.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dash-html-components@2.0.0/dash_html_components.min.css">
+    <!-- Plotly for visualization -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- Add py3Dmol for molecular visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js"></script>
+    <!-- Tus estilos personalizados -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
+</head>
+<body>
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h1 class="page-title">
+                <i class="icon-molecule"></i>Visualizador de Proteínas - Vista Integrada
+            </h1>
+            <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="btn btn-family-analysis">
+                <i class="icon-dna"></i>Análisis de Dipolo por Familia
+            </a>
+        </div>
+    </div>
+
+    <!-- Controles superiores -->
+    <div class="controls-container">
+        <div class="control-group">
+            <label for="groupSelect">Grupo:</label>
+            <select id="groupSelect">
+                <option value="toxinas">Toxinas</option>
+                <option value="nav1_7">Nav1.7</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="proteinSelect">Proteína:</label>
+            <select id="proteinSelect"></select>
+        </div>
+        
+        <!-- Solo mostrar estado del dipolo, sin toda la información -->
+        <div class="control-group" id="dipole-status-container" style="display: none;">
+            <label>Estado del Dipolo:</label>
+            <div id="dipole-status" class="dipole-status">
+                <span id="dipole-status-text">Seleccione una proteína Nav1.7</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layout principal: estructura 3D y grafo lado a lado -->
+    <div class="dual-view-container">
+        <!-- Panel izquierdo: Estructura 3D -->
+        <div class="structure-panel">
+            <div class="panel-header">
+                <h4>🧬 Estructura 3D</h4>
+                <div class="view-controls">
+                    <span id="current-structure-label" class="structure-label">Proteína del selector</span>
+                    <button id="switch-to-molstar" class="view-btn active">Proteína</button>
+                    <button id="switch-to-py3dmol" class="view-btn">Dipolo</button>
+                </div>
+            </div>
+            
+            <div class="structure-container">
+                <!-- Mol* viewer -->
+                <div id="viewer" class="structure-viewer active"></div>
+                
+                <!-- py3Dmol viewer -->
+                <div id="py3dmol-dipole-viewer" class="structure-viewer" style="display: none;">
+                    <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
+                    <div class="viewer-info">
+                        <strong>Visualización Dipolo</strong><br>
+                        🔴 Flecha Roja: Vector del dipolo<br>
+                        🔵 Proteina: Representacion "Cartoon"
+                    </div>
+                </div>
+                
+                <!-- Plotly viewer -->
+                <div id="plotly-dipole-viewer" class="structure-viewer" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Panel derecho: Análisis de Grafo -->
+        <div class="graph-panel">
+            <div class="panel-header">
+                <h4>📊 Análisis de Grafo Molecular</h4>
+                <span class="graph-analysis-label">Analizando: <span id="graph-analysis-protein">-</span></span>
+            </div>
+            
+            <!-- Controles del grafo -->
+            <div class="graph-controls">
+                <div class="controls-row">
+                    <div class="control-group">
+                        <label for="long-input">Separación de secuencia:</label>
+                        <input id="long-input" type="number" value="5" min="0" step="1">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="dist-input">Distancia umbral (Å):</label>
+                        <input id="dist-input" type="number" value="6.0" min="0" step="0.1">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="granularity-toggle">Representación:</label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="granularity-toggle" checked>
+                            <label for="granularity-toggle" class="slider">
+                                <span class="slider-text" data-on="Átomos" data-off="CA"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Visualización del grafo -->
+            <div class="graph-plot-container">
+                <div id="graph-plot"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de análisis con botones para alternar entre grafo y dipolo -->
+    <div class="analysis-toggle">
+        <button id="toggle-analysis" class="analysis-toggle-btn">
+            📈 Mostrar Análisis Detallado <span class="toggle-icon">▼</span>
+        </button>
+        <button id="toggle-dipole-analysis" class="analysis-toggle-btn dipole-toggle-btn" style="display: none;">
+            🧬 Mostrar Cálculos Dipolo <span class="toggle-icon">▼</span>
+        </button>
+    </div>
+
+    <!-- Contenedor para análisis detallado del grafo -->
+    <div id="detailed-analysis" class="detailed-analysis-container" style="display: none;">
+        <!-- Todo el contenido del análisis detallado existente del grafo -->
+        <div class="analysis-panel">
+            <h4>Análisis Detallado del Grafo Molecular</h4>
+            
+            <!-- Información Estructural Básica -->
+            <div class="analysis-section">
+                <h5>Información Estructural Básica</h5>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="label">Toxina analizada:</span>
+                        <span class="value" id="toxin-name">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Número de residuos (nodos):</span>
+                        <span class="value" id="num-nodes">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Número de interacciones (aristas):</span>
+                        <span class="value" id="num-edges">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Puentes disulfuro:</span>
+                        <span class="value" id="disulfide-bridges">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Densidad del grafo:</span>
+                        <span class="value" id="graph-density">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Coeficiente de agrupamiento promedio:</span>
+                        <span class="value" id="avg-clustering">-</span>
+                    </div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item" style="grid-column: 1 / -1;">
+                        <span class="label">Tipo de grafo:</span>
+                        <span class="value" id="graph-info">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Métricas de Centralidad -->
+            <div class="analysis-section">
+                <h5>Métricas de Centralidad - Resumen</h5>
+                <div class="centrality-summary">
+                    <div class="metric-card">
+                        <h6>Centralidad de Grado</h6>
+                        <div class="metric-details">
+                            <span class="metric-range">Min: <span id="degree-min">-</span> | Max: <span id="degree-max">-</span></span>
+                            <span class="metric-mean">Promedio: <span id="degree-mean">-</span></span>
+                            <span class="top-residues">Top: <span id="degree-top">-</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <h6>Centralidad de Intermediación</h6>
+                        <div class="metric-details">
+                            <span class="metric-range">Min: <span id="between-min">-</span> | Max: <span id="between-max">-</span></span>
+                            <span class="metric-mean">Promedio: <span id="between-mean">-</span></span>
+                            <span class="top-residues">Top: <span id="between-top">-</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <h6>Centralidad de Cercanía</h6>
+                        <div class="metric-details">
+                            <span class="metric-range">Min: <span id="closeness-min">-</span> | Max: <span id="closeness-max">-</span></span>
+                            <span class="metric-mean">Promedio: <span id="closeness-mean">-</span></span>
+                            <span class="top-residues">Top: <span id="closeness-top">-</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <h6>Coeficiente de Agrupamiento</h6>
+                        <div class="metric-details">
+                            <span class="metric-range">Min: <span id="clustering-min">-</span> | Max: <span id="clustering-max">-</span></span>
+                            <span class="metric-mean">Promedio: <span id="clustering-mean">-</span></span>
+                            <span class="top-residues">Top: <span id="clustering-top">-</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top 5 Residuos -->
+            <div class="analysis-section">
+                <h5>Top 5 Residuos por Métrica</h5>
+                <div class="top-residues-grid">
+                    <div class="top-metric-column">
+                        <h6>Centralidad de Grado</h6>
+                        <ul id="top-degree-list" class="residue-list"></ul>
+                    </div>
+                    <div class="top-metric-column">
+                        <h6>Centralidad de Intermediación</h6>
+                        <ul id="top-between-list" class="residue-list"></ul>
+                    </div>
+                    <div class="top-metric-column">
+                        <h6>Centralidad de Cercanía</h6>
+                        <ul id="top-closeness-list" class="residue-list"></ul>
+                    </div>
+                    <div class="top-metric-column">
+                        <h6>Coeficiente de Agrupamiento</h6>
+                        <ul id="top-clustering-list" class="residue-list"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exportar Datos -->
+            <div class="analysis-section">
+                <h5>Exportar Datos Completos</h5>
+                <div class="export-controls">
+                    <!-- Selector de tipo de exportación -->
+                    <div class="export-type-selection">
+                        <label for="export-type-selector">Tipo de análisis para exportar:</label>
+                        <select id="export-type-selector" class="export-type-selector">
+                            <option value="residues">Análisis por Residuos</option>
+                            <option value="segments_atomicos">Segmentación Atómica </option>
+                        </select>
+                        <div class="tooltip">
+                            <span class="tooltip-icon">ℹ</span>
+                            <span class="tooltip-text">Segmentación Atómica: agrupa átomos conectados en regiones lógicas del grafo (solo para Nav1.7 con granularidad atómica)</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Exportación individual -->
+                    <button id="export-csv-btn" class="export-button">
+                        <span class="button-text">📊 Descargar Excel de Residuos Individuales</span>
+                        <span class="loading-text" style="display: none;">⏳ Calculando...</span>
+                    </button>
+                    <p class="export-info">Descarga un archivo Excel con las métricas de centralidad de la toxina actual</p>
+                    
+                    <!-- Exportación por familias -->
+                    <div class="family-export-section">
+                        <h6>Análisis por Familias de Toxinas</h6>
+                        
+                        <!-- Selector de tipo de análisis para familias -->
+                        <div class="export-type-selection">
+                            <label for="family-export-type-selector">Tipo de análisis:</label>
+                            <select id="family-export-type-selector" class="export-type-selector">
+                                <option value="residues">Análisis por Residuos</option>
+                                <option value="segments_atomicos">Segmentación Atómica </option>
+                            </select>
+                            <div class="tooltip">
+                                <span class="tooltip-icon">ℹ</span>
+                                <span class="tooltip-text">La segmentación atómica agrupa átomos por residuos con métricas estructurales completas. Requiere granularidad atómica.</span>
+                            </div>
+                        </div>
+                        
+                        <select id="family-selector" class="family-selector">
+                            <option value="">Seleccionar familia...</option>
+                            <option value="μ-TRTX-Hh2a">μ-TRTX-Hh2a (Familia Hh2a)</option>
+                            <option value="μ-TRTX-Hhn2b">μ-TRTX-Hhn2b (Familia Hhn2b)</option>
+                            <option value="β-TRTX">β-TRTX (Familia Beta)</option>
+                            <option value="ω-TRTX">ω-TRTX (Familia Omega)</option>
+                        </select>
+                        
+                        <button id="export-family-csv-btn" class="export-button family-export-btn" disabled>
+                            <span class="button-text">📈 Descargar Dataset Excel Familia Completa + IC₅₀</span>
+                            <span class="loading-text" style="display: none;">⏳ Procesando familia...</span>
+                        </button>
+                        <p class="export-info">Descarga dataset completo en Excel con métricas topológicas y valores IC₅₀ para análisis estructura-actividad</p>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="wt-comparison-section">
+                <h6>Comparación de Toxinas Wild-Type (WT)</h6>
+                <p class="comparison-description">
+                    Compara la toxina WT representativa de cada familia contra la referencia estructural 
+                    <code>hwt4_Hh2a_WT.pdb</code> para identificar diferencias topológicas.
+                </p>
+                
+                <!-- Selector de tipo de análisis para WT -->
+                <div class="export-type-selection">
+                    <label for="wt-export-type-selector">Tipo de análisis:</label>
+                    <select id="wt-export-type-selector" class="export-type-selector">
+                        <option value="residues">Análisis por Residuos</option>
+                        <option value="segments_atomicos">Segmentación Atómica</option>
+                    </select>
+                    <div class="tooltip">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Segmentación atómica permite comparar estructuras a nivel atómico agrupadas por residuos con métricas completas.</span>
+                    </div>
+                </div>
+                
+                <select id="wt-family-selector" class="family-selector">
+                    <option value="">Seleccionar familia WT...</option>
+                    <option value="μ-TRTX-Hh2a">μ-TRTX-Hh2a (Familia Mu-TRTX 2a) - WT</option>
+                    <option value="μ-TRTX-Hhn2b">μ-TRTX-Hhn2b (Familia Mu-TRTX 2b) - WT</option>
+                    <option value="β-TRTX-Cd1a">β-TRTX-Cd1a (Familia Beta-TRTX) - WT</option>
+                    <option value="ω-TRTX-Gr2a">ω-TRTX-Gr2a (Familia Omega-TRTX) - WT</option>
+                </select>
+                
+                <button id="export-wt-comparison-btn" class="export-button wt-comparison-btn" disabled>
+                    <span class="button-text">🔬 Comparar WT vs Referencia + Exportar Excel</span>
+                    <span class="loading-text" style="display: none;">⏳ Analizando diferencias estructurales...</span>
+                </button>
+                <p class="export-info">
+                    Genera análisis comparativo en Excel entre la toxina WT seleccionada y la referencia hwt4_Hh2a_WT.pdb
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor para cálculos del dipolo -->
+    <div id="dipole-calculations" class="detailed-analysis-container" style="display: none;">
+        <div class="analysis-panel">
+            <h4>🧬 Cálculos del Vector Dipolo</h4>
+            
+            <!-- Información del Dipolo -->
+            <div class="analysis-section">
+                <div class="dipole-info-container">
+                    <div class="dipole-header">
+                        <h4>Análisis de Dipolo</h4>
+                    </div>
+                    
+                    <div class="dipole-properties-grid">
+                        <div class="dipole-property">
+                            <span class="property-label">📏 Magnitud:</span>
+                            <span class="property-value" id="dipole-magnitude-detail">-</span>
+                            <span class="property-unit">D</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">📐 Ángulo con eje Z:</span>
+                            <span class="property-value" id="dipole-angle-z-detail">-</span>
+                            <span class="property-unit">°</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">🧭 Dirección normalizada:</span>
+                            <span class="property-value direction-value" id="dipole-direction-detail">-</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">📍 Centro de masa:</span>
+                            <span class="property-value coordinates-value" id="dipole-center-detail">-</span>
+                        </div>
+                        
+                        <div class="dipole-property">
+                            <span class="property-label">🎯 Punto final:</span>
+                            <span class="property-value coordinates-value" id="dipole-endpoint-detail">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información adicional del dipolo -->
+            <div class="analysis-section">
+                <h5>Información Técnica del Cálculo</h5>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="label">Método de cálculo:</span>
+                        <span class="value" id="dipole-method">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Vector dipolo (x, y, z):</span>
+                        <span class="value" id="dipole-vector-raw">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Ángulo en radianes:</span>
+                        <span class="value" id="dipole-angle-radians">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Proteína analizada:</span>
+                        <span class="value" id="dipole-protein-name">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <script id="protein-data" type="application/json">
+        {
+            "toxinas": {{ toxinas | tojson | safe }},
+            "nav1_7": {{ nav1_7 | tojson | safe }}
+        }
+    </script>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.js"></script>
+    <script src="{{ url_for('static', filename='js/molstar_analyzer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/graph_viewer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/export_feedback.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dual_view_manager.js') }}"></script>
+</body>
+</html>
