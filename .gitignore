@@ -12,6 +12,7 @@ data/processed/
 data/processed/*.csv
 data/processed/*.json
 pdbs/*.pdb
+psfs/*.psf
 processed/*.json
 
 __pycache__/
