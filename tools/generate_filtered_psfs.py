@@ -3,13 +3,20 @@
 Genera PSF/PDB para los péptidos filtrados (tabla Peptides) y guarda los archivos
 en tools/filtered nombrados por accession_number. Captura logs por péptido y
 reintenta los fallidos al final mostrando el tail del log para depurar.
+
+Extensión: permite generar PSF/PDB directamente desde un archivo PDB arbitrario
+pasado por CLI, útil para procesar proteínas sueltas (ej. wild type) y dejar la
+salida en una carpeta `generated` junto al archivo original.
 """
+import argparse
 import os
-import sys
+import shutil
 import sqlite3
-import tempfile
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 # Rutas base
 root_dir = Path(__file__).parent.parent.resolve()
@@ -39,12 +46,16 @@ class FilteredPSFGenerator:
                  db_path="database/toxins.db",
                  tcl_script_path="resources/psf_gen.tcl",
                  topology_files=None,
-                 output_base="tools/filtered"):
+                 output_base="tools/filtered",
+                 default_chain="PROA",
+                 disulfide_cutoff=2.3):
         # Rutas absolutas
         self.db_path = (root_dir / db_path).resolve()
         self.tcl_script_path = (root_dir / tcl_script_path).resolve()
         self.output_base = (root_dir / output_base).resolve()
         self.logs_dir = self.output_base / "logs"
+        self.default_chain = default_chain
+        self.disulfide_cutoff = disulfide_cutoff
 
         if topology_files is None:
             topology_files = ["resources/top_all36_prot.rtf"]
@@ -98,13 +109,21 @@ class FilteredPSFGenerator:
         finally:
             conn.close()
 
-    def _run_vmd_subprocess(self, pdb_path: Path, out_prefix: Path) -> tuple[bool, str]:
+    def _run_vmd_subprocess(
+        self,
+        pdb_path: Path,
+        out_prefix: Path,
+        chain: Optional[str] = None,
+        disulfide_cutoff: Optional[float] = None,
+    ) -> Tuple[bool, str]:
         # Script TCL por peptide
         tops_tcl = "{" + " ".join(f'"{t}"' for t in self.topology_files) + "}"
+        chain_id = chain or self.default_chain
+        cutoff = disulfide_cutoff or self.disulfide_cutoff
         tcl_body = f"""
 package require psfgen
 source "{self.tcl_script_path}"
-set res [build_psf_with_disulfides "{pdb_path}" {tops_tcl} "{out_prefix}" "PROA" 2.3]
+set res [build_psf_with_disulfides "{pdb_path}" {tops_tcl} "{out_prefix}" "{chain_id}" {cutoff}]
 puts "PSF_OUT:[lindex $res 0]"
 puts "PDB_OUT:[lindex $res 1]"
 exit
@@ -177,6 +196,57 @@ exit
                 except Exception:
                     pass
 
+    def generate_psf_from_local_pdb(
+        self,
+        pdb_file: Path,
+        output_dir: Optional[Path] = None,
+        *,
+        chain: Optional[str] = None,
+        disulfide_cutoff: Optional[float] = None,
+        verbose: bool = False,
+    ) -> Dict[str, object]:
+        """Genera PSF/PDB a partir de un archivo PDB local.
+
+        Retorna un diccionario con rutas de salida y estado.
+        """
+        pdb_path = Path(pdb_file).expanduser().resolve()
+        if not pdb_path.exists():
+            raise FileNotFoundError(f"No existe el archivo PDB: {pdb_path}")
+
+        if output_dir is None:
+            output_base = pdb_path.parent / "generated"
+        else:
+            output_base = Path(output_dir).expanduser().resolve()
+
+        output_base.mkdir(parents=True, exist_ok=True)
+        logs_dir = (output_base / "logs")
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        out_prefix = (output_base / pdb_path.stem).resolve()
+        ok, out_text = self._run_vmd_subprocess(
+            pdb_path,
+            out_prefix,
+            chain=chain,
+            disulfide_cutoff=disulfide_cutoff,
+        )
+
+        log_path = logs_dir / f"{pdb_path.stem}.log"
+        log_path.write_text(out_text, encoding="utf-8")
+
+        psf_path = out_prefix.with_suffix(".psf")
+        pdb_out_path = out_prefix.with_suffix(".pdb")
+
+        if verbose:
+            print(tail_text(out_text, 80))
+
+        return {
+            "ok": ok and psf_path.exists() and pdb_out_path.exists(),
+            "psf": psf_path,
+            "pdb": pdb_out_path,
+            "log": log_path,
+            "stdout": out_text,
+        }
+
     def process_all_filtered(self, gap_min=3, gap_max=6, require_pair=False):
         hits = self.get_filtered_peptides(gap_min, gap_max, require_pair)
         total = len(hits)
@@ -237,13 +307,54 @@ exit
         finally:
             conn.close()
 
-def main():
-    gen = FilteredPSFGenerator()
-    gen.find_toxin_for_comparison("μ-TRTX-Cg4a")
-    gen.process_all_filtered(gap_min=3, gap_max=6, require_pair=False)
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Genera PSF/PDB desde la base de datos o desde un archivo PDB suelto."
+    )
+    parser.add_argument("--pdb-file", type=Path, help="Ruta a un archivo PDB a procesar directamente.")
+    parser.add_argument("--output-dir", type=Path, help="Directorio de salida opcional para el modo --pdb-file.")
+    parser.add_argument("--chain", default="PROA", help="ID de cadena a usar en psfgen (default: PROA).")
+    parser.add_argument("--disulfide-cutoff", type=float, default=2.3,
+                        help="Distancia de corte para detectar puentes disulfuro (Å).")
+    parser.add_argument("--gap-min", type=int, default=3, help="Gap mínimo para el filtro de toxinas.")
+    parser.add_argument("--gap-max", type=int, default=6, help="Gap máximo para el filtro de toxinas.")
+    parser.add_argument("--require-pair", action="store_true", help="Requiere par hidrofóbico en el filtro.")
+    parser.add_argument("--skip-reference", action="store_true", help="Omitir impresión de toxina de referencia.")
+    parser.add_argument("--verbose", action="store_true", help="Mostrar tail de logs en consola.")
+
+    args = parser.parse_args(argv)
+
+    gen = FilteredPSFGenerator(
+        default_chain=args.chain,
+        disulfide_cutoff=args.disulfide_cutoff,
+    )
+
+    if args.pdb_file:
+        result = gen.generate_psf_from_local_pdb(
+            args.pdb_file,
+            args.output_dir,
+            chain=args.chain,
+            disulfide_cutoff=args.disulfide_cutoff,
+            verbose=args.verbose,
+        )
+
+        psf_status = "OK" if result["ok"] else "FAIL"
+        print(f"[{psf_status}] PDB: {args.pdb_file}")
+        print(f"  • PSF: {result['psf']}")
+        print(f"  • PDB: {result['pdb']}")
+        print(f"  • Log: {result['log']}")
+        return 0 if result["ok"] else 1
+
+    if not args.skip_reference:
+        gen.find_toxin_for_comparison("μ-TRTX-Cg4a")
+
+    gen.process_all_filtered(
+        gap_min=args.gap_min,
+        gap_max=args.gap_max,
+        require_pair=args.require_pair,
+    )
     return 0
 
 
 if __name__ == "__main__":
-    import shutil
     sys.exit(main())

@@ -1,0 +1,145 @@
+Info) VMD for LINUXAMD64, version 1.9.3 (November 30, 2016)
+Info) http://www.ks.uiuc.edu/Research/vmd/                         
+Info) Email questions and bug reports to vmd@ks.uiuc.edu           
+Info) Please include this reference in published work using VMD:   
+Info)    Humphrey, W., Dalke, A. and Schulten, K., `VMD - Visual   
+Info)    Molecular Dynamics', J. Molec. Graphics 1996, 14.1, 33-38.
+Info) -------------------------------------------------------------
+Info) Multithreading available, 12 CPUs detected.
+Info)   CPU features: SSE2 AVX AVX2 FMA 
+Info) Free system memory: 12GB (74%)
+Info) Creating CUDA device pool and initializing hardware...
+Info) Detected 1 available CUDA accelerator:
+Info) [0] NVIDIA GeForce RTX 3060 28 SM_8.6 @ 1.81 GHz, 12GB RAM, KTO, AE1, ZCP
+Info) Dynamically loaded 2 plugins in directory:
+Info) /home/juaker/miniconda3/envs/vmd/lib/plugins/LINUXAMD64/molfile
+1.6.4
+Iniciando construcción PSF para: /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/hwt4_Hh2a_WT.pdb
+Topologías: "/mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/resources/top_all36_prot.rtf"
+Prefijo salida: /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT
+Segmento: PROA
+Cutoff disulfuro: 2.3 Å
+psfgen) clearing structure, preserving topology and aliases
+Cargando topología: /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/resources/top_all36_prot.rtf
+psfgen) reading topology file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/resources/top_all36_prot.rtf
+
+psfgen) >>>>>>>>CHARMM36 All-Hydrogen Topology File for Proteins <<<<<<
+psfgen) >>>>> Includes phi, psi cross term map (CMAP) correction <<<<<<<
+psfgen) >>>>>>>>>>>>>>>>>>>>>>>>>> May 2011 <<<<<<<<<<<<<<<<<<<<<<<<<<<<
+psfgen)  All comments to the CHARMM web site: www.charmm.org
+psfgen)              parameter set discussion forum
+psfgen) 
+psfgen) Created by CHARMM version 36 1
+psfgen) ERROR!  Failed to parse autogenerate statement.  Line 95: AUTO ANGLES DIHE PATCH
+
+psfgen) cross-term entries present in topology definitions
+psfgen) aliasing residue ILE atom CD1 to CD
+psfgen) aliasing residue HIS to HSE
+psfgen) aliasing residue HID to HSD
+psfgen) aliasing residue HIE to HSE
+psfgen) aliasing residue HIP to HSP
+psfgen) aliasing residue HSD to HSD
+psfgen) aliasing residue HSE to HSE
+psfgen) aliasing residue HSP to HSP
+psfgen) aliasing residue MSE to MET
+psfgen) aliasing residue SEC to CYS
+psfgen) aliasing residue CYX to CYS
+Info) Using plugin pdb for structure file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/hwt4_Hh2a_WT.pdb
+Info) Using plugin pdb for coordinates from file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/hwt4_Hh2a_WT.pdb
+Info) Determining bond structure from distance search ...
+Info) Finished with coordinate file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/hwt4_Hh2a_WT.pdb.
+Info) Analyzing structure ...
+Info)    Atoms: 552
+Info)    Bonds: 559
+Info)    Angles: 0  Dihedrals: 0  Impropers: 0  Cross-terms: 0
+Info)    Bondtypes: 0  Angletypes: 0  Dihedraltypes: 0  Impropertypes: 0
+Info)    Residues: 35
+Info)    Waters: 0
+Info)    Segments: 1
+Info)    Fragments: 1   Protein: 1   Nucleic: 0
+Info) Opened coordinate file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb for writing.
+Info) Finished with coordinate file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb.
+Construyendo segmento PROA...
+psfgen) building segment PROA
+psfgen) reading residues from pdb file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb
+psfgen) extracted 35 residues from pdb file
+psfgen) Info: generating structure...psfgen) Info: skipping improper N-C-CA-HN at beginning of segment.
+psfgen) Info: skipping cross-term C-N-CA-C-N-CA-C-N at beginning of segment.
+psfgen) Info: skipping conformation C-N-CA-C at beginning of segment.
+psfgen) Info: skipping conformation C-CA-N-HN at beginning of segment.
+psfgen) Info: skipping bond C-N at end of segment.
+psfgen) Info: skipping improper C-CA-N-O at end of segment.
+psfgen) Info: skipping cross-term C-N-CA-C-N-CA-C-N at end of segment.
+psfgen) Info: skipping conformation CA-C-N-CA at end of segment.
+psfgen) Info: skipping conformation N-CA-C-O at end of segment.
+psfgen) Info: skipping conformation N-CA-C-N at end of segment.
+segment complete.
+psfgen) reading coordinates from pdb file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb for segment PROA
+Buscando enlaces disulfuro...
+PROA:29 
+PROA:1 
+Info) Using plugin pdb for structure file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb
+Info) Using plugin pdb for coordinates from file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb
+Info) Determining bond structure from distance search ...
+Info) Finished with coordinate file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/psfgen_sanitized_20966_1760596123579915.pdb.
+Info) Analyzing structure ...
+Info)    Atoms: 552
+Info)    Bonds: 559
+Info)    Angles: 0  Dihedrals: 0  Impropers: 0  Cross-terms: 0
+Info)    Bondtypes: 0  Angletypes: 0  Dihedraltypes: 0  Impropertypes: 0
+Info)    Residues: 35
+Info)    Waters: 0
+Info)    Segments: 1
+Info)    Fragments: 1   Protein: 1   Nucleic: 0
+Encontrados 6 átomos SG de cisteína
+Calculando distancias entre 6 átomos SG...
+Distancia SG 2 - SG 34: 12.888677264514628 Å
+Distancia SG 2 - SG 8: 8.999659998551396 Å
+Distancia SG 2 - SG 9: 2.0409913923284666 Å
+  -> Candidato a enlace disulfuro (distancia: 2.0409913923284666 Å)
+Distancia SG 2 - SG 17: 13.33570726227377 Å
+Distancia SG 2 - SG 25: 8.896498020911096 Å
+Distancia SG 34 - SG 8: 4.105763196509516 Å
+Distancia SG 34 - SG 9: 11.548267084017379 Å
+Distancia SG 34 - SG 17: 1.9350915169933673 Å
+  -> Candidato a enlace disulfuro (distancia: 1.9350915169933673 Å)
+Distancia SG 34 - SG 25: 4.850140853604705 Å
+Distancia SG 8 - SG 9: 7.636179306724683 Å
+Distancia SG 8 - SG 17: 4.712634063768047 Å
+Distancia SG 8 - SG 25: 2.0709648517702246 Å
+  -> Candidato a enlace disulfuro (distancia: 2.0709648517702246 Å)
+Distancia SG 9 - SG 17: 11.779596003119373 Å
+Distancia SG 9 - SG 25: 7.936570609052201 Å
+Distancia SG 17 - SG 25: 6.066563897372638 Å
+Enlaces disulfuro seleccionados: 3
+>> Aplicando patch DISU entre PROA:34 y PROA:17
+psfgen) applying patch DISU to 2 residues
+>> Aplicando patch DISU entre PROA:2 y PROA:9
+psfgen) applying patch DISU to 2 residues
+>> Aplicando patch DISU entre PROA:8 y PROA:25
+psfgen) applying patch DISU to 2 residues
+Total de patches DISU aplicados: 3
+psfgen) regenerating all angles
+psfgen) regenerating all dihedrals
+psfgen) Info: guessing coordinates for 0 atoms (0 non-hydrogen)
+psfgen) Info: writing psf file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT.psf
+psfgen) total of 552 atoms
+psfgen) total of 559 bonds
+psfgen) total of 1011 angles
+psfgen) total of 1487 dihedrals
+psfgen) total of 94 impropers
+psfgen) total of 0 explicit exclusions
+psfgen) total of 33 cross-terms
+psfgen) Info: psf file complete.
+psfgen) Info: writing pdb file /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT.pdb
+psfgen) Info: pdb file complete.
+/mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT.psf /mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT.pdb
+PSF_OUT:/mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT.psf
+PDB_OUT:/mnt/c/Users/joaco/Desktop/Prueba-streamlit/Proyecto-toxinas/pdbs/WT/generated/hwt4_Hh2a_WT.pdb
+PROA:34 PROA:17 
+PROA:2 PROA:9 
+PROA:8 PROA:25 
+Info) VMD for LINUXAMD64, version 1.9.3 (November 30, 2016)
+Info) Exiting normally.
+vmd > 
+/home/juaker/miniconda3/envs/vmd/lib/vmd_LINUXAMD64: /lib/x86_64-linux-gnu/libGL.so.1: no version information available (required by /home/juaker/miniconda3/envs/vmd/lib/vmd_LINUXAMD64)

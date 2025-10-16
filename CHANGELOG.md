@@ -2,7 +2,26 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
-## [1.9.0] – 2025-10-09
+## [2.1.0] – 2025-10-16
+### Added
+- Selector de referencia en la vista de dipolos: opción fija **WT hwt4_Hh2a** seguida de toxinas de la tabla `Nav1_7_InhibitorPeptides` ordenadas por IC50 normalizado; al cambiar la referencia se recalculan dipolo y orden del listado.
+- Visualización multi-modo para los hits filtrados (Vectores, Puentes S–S, Ambos) con overlays que exhiben magnitud, ángulos y ΔX/ΔY/ΔZ frente a la referencia.
+- Métricas de orientación completas: cálculo y exposición de Δori, proyecciones vectoriales normalizadas y diferencias por eje tanto en tarjetas como en overlays.
+- Extensión de `tools/generate_filtered_psfs.py` con soporte `--pdb-file`, `--output-dir`, `--chain` y `--disulfide-cutoff`; los artefactos del WT se generan en `pdbs/WT/generated/`.
+
+### Changed
+- El backend ordena los resultados filtrados por el “orientation_score” (ángulo entre vectores normalizados) y usa ΔZ solo como métrica secundaria; la paginación opera sobre la lista ya ordenada.
+- El layout del panel de visualización incluye la lista desplegable junto al título “Dipolo de referencia” y refresca viewers al cambiar la selección sin recargar la página.
+- Cacheo de referencia centralizado: la app reutiliza PDB/PSF y vectores normalizados cuando es la WT y solo recalcula al seleccionar otra toxina.
+
+### Technical Details
+- Helper `_compute_orientation_metrics` consolida normalización, proyección por eje y diferencias absolutas; la respuesta JSON expone `orientation_score_deg`, `delta_axes` y metadatos de la referencia activa.
+- `motif_dipoles.js` incorpora utilidades `normalizeVector`, `computeAngle`, `computeAxisDiffs` y renderizado agnóstico al modo, compartiendo leyendas y tooltips entre viewers.
+- `motif_dipoles_controller.py` resuelve la referencia por código, normaliza IC50 a nM (`_convert_ic50_to_nm`) y mantiene caches en memoria para minimizar cálculos repetidos.
+
+---
+
+## [2.0.0] – 2025-10-09
 ### Added
 - Rediseño completo del frontend con sistema de diseño profesional unificado:
   - Sistema de variables CSS centralizadas (design-system.css) con escalas de color, espaciado, tipografía, sombras y transiciones.
@@ -56,10 +75,6 @@ El historial se organiza en "versiones" retrospectivas según hitos de desarroll
 - Código duplicado de manejo de checkbox en toxin_filter.js.
 
 ---
-
-## [1.8.0] – 2025-10-03
-Todas las modificaciones significativas del proyecto se documentan aquí.  
-El historial se organiza en “versiones” retrospectivas según hitos de desarrollo.
 
 ## [1.8.0] – 2025-10-03
 ### Added

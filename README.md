@@ -20,6 +20,9 @@ Este proyecto proporciona herramientas para analizar la estructura y propiedades
 - **Análisis de IC50**:  Integración de datos de actividad biológica; todos los valores se convierten a nM para permitir análisis comparativos de actividad  
 
 - **Correlación Estructura-Actividad**: Análisis combinado de métricas estructurales y datos IC50
+- **Filtro de Toxinas NaSpTx**: Búsqueda basada en motivos (X1X2-S-WCKX3) con scoring heurístico y soporte para ≥6 cisteínas.
+- **Visualización Multi-Modo**: Modos Vectores Dipolares, Puentes Disulfuro y Ambos con ΔZ resaltado y transición instantánea.
+- **Ordenamiento Angular vs WT**: Toxinas filtradas ordenadas por desviación del ángulo respecto al dipolo WT `hwt4_Hh2a_WT` (calculado desde PSF/PDB generados).
 
 ## 🚀 Instalación Rápida
 

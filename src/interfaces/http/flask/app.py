@@ -30,7 +30,8 @@ def create_app_v2() -> Flask:
             db_path = "database/toxins.db"
             pdb_dir = "pdbs"
             psf_dir = "psfs"
-            wt_reference_path = os.path.join("pdbs", "WT", "hwt4_Hh2a_WT.pdb")
+            wt_reference_path = os.path.join("pdbs", "WT", "generated", "hwt4_Hh2a_WT.pdb")
+            wt_reference_psf_path = os.path.join("pdbs", "WT", "generated", "hwt4_Hh2a_WT.psf")
         cfg = _CF()
     # Expose config for debugging/diagnostics
     try:
@@ -39,6 +40,7 @@ def create_app_v2() -> Flask:
             'pdb_dir': getattr(cfg, 'pdb_dir', None),
             'psf_dir': getattr(cfg, 'psf_dir', None),
             'wt_reference_path': getattr(cfg, 'wt_reference_path', None),
+            'wt_reference_psf_path': getattr(cfg, 'wt_reference_psf_path', None),
         }
     except Exception:
         pass
@@ -151,6 +153,8 @@ def create_app_v2() -> Flask:
             db_path=getattr(cfg, 'db_path', 'database/toxins.db'),
             filtered_dir=os.path.join(os.getcwd(), 'tools', 'filtered'),
             dipole_adapter=dipole_service,
+            reference_pdb=getattr(cfg, 'wt_reference_path', None),
+            reference_psf=getattr(cfg, 'wt_reference_psf_path', None),
         )
         app.register_blueprint(motif_dipoles_v2)
     except Exception as e:

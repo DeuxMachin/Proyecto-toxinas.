@@ -1,7 +1,9 @@
 from flask import Blueprint, jsonify, request
+import math
 import os
 import sqlite3
 from pathlib import Path
+from typing import Optional, Dict, Any, Iterable, Tuple, List
 
 from extractors.toxins_filter import search_toxins
 from src.infrastructure.graphein.dipole_adapter import DipoleAdapter
@@ -13,13 +15,45 @@ motif_dipoles_v2 = Blueprint("motif_dipoles_v2", __name__)
 _DB_PATH: str = "database/toxins.db"
 _FILTERED_DIR: Path = Path("tools/filtered").resolve()
 _DIP = None  # type: DipoleAdapter
+_REFERENCE_PDB: Optional[Path] = None
+_REFERENCE_PSF: Optional[Path] = None
+_REFERENCE_CACHE: Optional[Dict[str, Any]] = None
+_REFERENCE_DB_CACHE: Dict[str, Dict[str, Any]] = {}
+_REFERENCE_OPTIONS_CACHE: Optional[List[Dict[str, Any]]] = None
+
+_AXES = ("x", "y", "z")
+_DEFAULT_DB_REFERENCE_CODE = "μ-TRTX-Cg4a"
 
 
-def configure_motif_dipoles_dependencies(*, db_path: str, filtered_dir: str, dipole_adapter: DipoleAdapter):
-    global _DB_PATH, _FILTERED_DIR, _DIP
+def configure_motif_dipoles_dependencies(
+    *,
+    db_path: str,
+    filtered_dir: str,
+    dipole_adapter: DipoleAdapter,
+    reference_pdb: Optional[str] = None,
+    reference_psf: Optional[str] = None,
+):
+    global _DB_PATH, _FILTERED_DIR, _DIP, _REFERENCE_PDB, _REFERENCE_PSF, _REFERENCE_CACHE, _REFERENCE_DB_CACHE, _REFERENCE_OPTIONS_CACHE
     _DB_PATH = db_path
     _FILTERED_DIR = Path(filtered_dir).resolve()
     _DIP = dipole_adapter
+    _REFERENCE_CACHE = None
+    _REFERENCE_DB_CACHE = {}
+    _REFERENCE_OPTIONS_CACHE = None
+
+    if reference_pdb:
+        ref_path = Path(reference_pdb)
+        _REFERENCE_PDB = ref_path.resolve()
+    else:
+        _REFERENCE_PDB = None
+
+    if reference_psf:
+        _REFERENCE_PSF = Path(reference_psf).resolve()
+    elif _REFERENCE_PDB is not None:
+        candidate = _REFERENCE_PDB.with_suffix(".psf")
+        _REFERENCE_PSF = candidate if candidate.exists() else None
+    else:
+        _REFERENCE_PSF = None
 
 
 def _compute_dipole_from_files(pdb_path: Path, psf_path: Path):
@@ -30,13 +64,250 @@ def _compute_dipole_from_files(pdb_path: Path, psf_path: Path):
     return {"dipole": dip, "pdb_text": pdb_text}
 
 
+def _normalize_vector(seq: Iterable[float]) -> Optional[Tuple[float, float, float]]:
+    try:
+        values = [float(x) for x in seq]
+    except (TypeError, ValueError):
+        return None
+    if len(values) < 3:
+        return None
+    x, y, z = values[:3]
+    norm = math.sqrt(x * x + y * y + z * z)
+    if norm == 0:
+        return None
+    return (x / norm, y / norm, z / norm)
+
+
+def _get_normalized_vector(dipole: Dict[str, Any]) -> Optional[Tuple[float, float, float]]:
+    if not dipole:
+        return None
+    vec = dipole.get("normalized") or dipole.get("vector")
+    if vec is None:
+        return None
+    if isinstance(vec, dict):
+        if all(ax in vec for ax in _AXES):
+            seq = [vec[ax] for ax in _AXES]
+        else:
+            seq = list(vec.values())
+    else:
+        seq = vec
+    normalized = _normalize_vector(seq)
+    return normalized
+
+
+def _compute_axis_angles(vec: Optional[Tuple[float, float, float]]) -> Optional[Dict[str, float]]:
+    if vec is None:
+        return None
+    angles: Dict[str, float] = {}
+    for axis, component in zip(_AXES, vec):
+        comp = max(-1.0, min(1.0, component))
+        angles[axis] = math.degrees(math.acos(comp))
+    return angles
+
+
+def _compute_orientation_metrics(
+    vec: Optional[Tuple[float, float, float]],
+    ref_vec: Optional[Tuple[float, float, float]],
+    angles: Optional[Dict[str, float]],
+    ref_angles: Optional[Dict[str, float]],
+) -> Dict[str, Any]:
+    metrics: Dict[str, Any] = {
+        "angle_diff_vs_reference": None,
+        "orientation_score_deg": None,
+        "vector_angle_vs_reference_deg": None,
+        "angle_diff_l2_deg": None,
+        "angle_diff_l1_deg": None,
+    }
+    if vec is None or ref_vec is None:
+        return metrics
+
+    dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(vec, ref_vec))))
+    vector_angle = math.degrees(math.acos(dot))
+    metrics["vector_angle_vs_reference_deg"] = vector_angle
+    metrics["orientation_score_deg"] = vector_angle
+
+    if angles and ref_angles:
+        axis_diffs = {axis: abs(angles[axis] - ref_angles[axis]) for axis in _AXES}
+        metrics["angle_diff_vs_reference"] = axis_diffs
+        l2 = math.sqrt(sum(val * val for val in axis_diffs.values()))
+        l1 = sum(axis_diffs.values())
+        metrics["angle_diff_l2_deg"] = l2
+        metrics["angle_diff_l1_deg"] = l1
+    return metrics
+
+
+def _convert_ic50_to_nm(value: Any, unit: Optional[str]) -> Optional[float]:
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    unit_clean = (unit or "").strip().lower().replace("µ", "u").replace("μ", "u")
+    unit_clean = unit_clean.replace("nanomolar", "nm").replace("micromolar", "um").replace("picomolar", "pm")
+    factors = {
+        "nm": 1.0,
+        "n m": 1.0,
+        "um": 1e3,
+        "u m": 1e3,
+        "pm": 1e-3,
+        "p m": 1e-3,
+        "mm": 1e6,
+        "m m": 1e6,
+    }
+    factor = factors.get(unit_clean)
+    if factor is None:
+        if unit_clean.endswith("nm"):
+            factor = 1.0
+        elif unit_clean.endswith("um"):
+            factor = 1e3
+        elif unit_clean.endswith("pm"):
+            factor = 1e-3
+        elif unit_clean.endswith("mm"):
+            factor = 1e6
+        else:
+            factor = 1.0
+    return numeric_value * factor
+
+
+def _get_reference_options() -> List[Dict[str, Any]]:
+    global _REFERENCE_OPTIONS_CACHE
+    if _REFERENCE_OPTIONS_CACHE is not None:
+        return [dict(opt) for opt in _REFERENCE_OPTIONS_CACHE]
+
+    conn = sqlite3.connect(_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, peptide_code, ic50_value, ic50_unit
+        FROM Nav1_7_InhibitorPeptides
+        ORDER BY peptide_code
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    entries = []
+    finite_values = []
+    for row in rows:
+        code = row["peptide_code"]
+        ic50_value = row["ic50_value"]
+        ic50_unit = row["ic50_unit"]
+        try:
+            ic50_value_numeric = float(ic50_value) if ic50_value is not None else None
+        except (TypeError, ValueError):
+            ic50_value_numeric = None
+        ic50_nm = _convert_ic50_to_nm(ic50_value_numeric, ic50_unit) if ic50_value_numeric is not None else None
+        if ic50_nm is not None:
+            finite_values.append(ic50_nm)
+        entries.append({
+            "value": code,
+            "label": code,
+            "peptide_code": code,
+            "ic50_value": ic50_value_numeric,
+            "ic50_unit": ic50_unit,
+            "ic50_nm": ic50_nm,
+        })
+
+    options: List[Dict[str, Any]] = []
+    options.append({
+        "value": "WT",
+        "label": "Proteína WT",
+        "peptide_code": "WT",
+        "ic50_value": None,
+        "ic50_unit": None,
+        "normalized_ic50": None,
+        "ic50_nm": None,
+    })
+
+    if finite_values:
+        min_value = min(finite_values)
+        max_value = max(finite_values)
+    else:
+        min_value = max_value = None
+
+    normalized_entries: List[Dict[str, Any]] = []
+    for entry in entries:
+        ic50_nm = entry["ic50_nm"]
+        if ic50_nm is not None and min_value is not None and max_value is not None:
+            if max_value == min_value:
+                normalized = 0.0
+            else:
+                normalized = (ic50_nm - min_value) / (max_value - min_value)
+        else:
+            normalized = None
+        normalized_entries.append({
+            **entry,
+            "normalized_ic50": normalized,
+        })
+
+    normalized_entries.sort(
+        key=lambda opt: (
+            opt["normalized_ic50"] is None,
+            opt["normalized_ic50"] if opt["normalized_ic50"] is not None else float("inf"),
+            opt["peptide_code"],
+        )
+    )
+
+    for entry in normalized_entries:
+        options.append({
+            "value": entry["value"],
+            "label": entry["label"],
+            "peptide_code": entry["peptide_code"],
+            "ic50_value": entry["ic50_value"],
+            "ic50_unit": entry["ic50_unit"],
+            "normalized_ic50": entry["normalized_ic50"],
+            "ic50_nm": entry["ic50_nm"],
+        })
+
+    _REFERENCE_OPTIONS_CACHE = options
+    return [dict(opt) for opt in options]
+
+
+def _lookup_option_by_code(peptide_code: str) -> Optional[Dict[str, Any]]:
+    for option in _get_reference_options():
+        if option["value"] == peptide_code:
+            return option
+    return None
+
+
+def _load_reference_from_files() -> Optional[Dict[str, Any]]:
+    global _REFERENCE_CACHE
+    if _REFERENCE_PDB is None or _REFERENCE_PSF is None:
+        return None
+    if not _REFERENCE_PDB.exists() or not _REFERENCE_PSF.exists():
+        return None
+    if _REFERENCE_CACHE is None:
+        cache = _compute_dipole_from_files(_REFERENCE_PDB, _REFERENCE_PSF)
+        cache.update({
+            "source": "filesystem",
+            "pdb_path": str(_REFERENCE_PDB),
+            "psf_path": str(_REFERENCE_PSF),
+            "peptide_code": "WT",
+            "display_name": "Proteína WT",
+            "normalized_ic50": None,
+            "ic50_value": None,
+            "ic50_unit": None,
+            "ic50_value_nm": None,
+        })
+        vec = _get_normalized_vector(cache.get("dipole"))
+        if vec:
+            cache["normalized_vector"] = vec
+            angles = _compute_axis_angles(vec)
+            if angles:
+                cache["angles_deg"] = angles
+                cache["angle_with_z_deg"] = angles.get("z")
+        _REFERENCE_CACHE = cache
+    return _REFERENCE_CACHE
+
+
 def _fetch_reference_row(db_path: str, peptide_code: str = "μ-TRTX-Cg4a"):
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, peptide_code, pdb_blob, psf_blob
+            SELECT id, peptide_code, pdb_blob, psf_blob, ic50_value, ic50_unit
             FROM Nav1_7_InhibitorPeptides
             WHERE peptide_code = ?
             """,
@@ -47,32 +318,117 @@ def _fetch_reference_row(db_path: str, peptide_code: str = "μ-TRTX-Cg4a"):
         conn.close()
 
 
+def _load_reference_from_db(peptide_code: str = "μ-TRTX-Cg4a") -> Optional[Dict[str, Any]]:
+    global _REFERENCE_DB_CACHE
+    if peptide_code in _REFERENCE_DB_CACHE:
+        return _REFERENCE_DB_CACHE[peptide_code]
+
+    row = _fetch_reference_row(_DB_PATH, peptide_code=peptide_code)
+    if not row:
+        return None
+    pid, code, pdb_blob, psf_blob, ic50_value, ic50_unit = row
+    if not pdb_blob or not psf_blob or _DIP is None:
+        return None
+    res = _DIP.process_dipole_calculation(pdb_blob, psf_blob)
+    if not res.get("success"):
+        return None
+    pdb_text = (
+        pdb_blob.decode("utf-8", errors="replace")
+        if isinstance(pdb_blob, (bytes, bytearray))
+        else str(pdb_blob)
+    )
+    cache = {
+        "source": "database",
+        "peptide_code": code,
+        "pid": pid,
+        "dipole": res.get("dipole"),
+        "pdb_text": pdb_text,
+        "ic50_value": float(ic50_value) if ic50_value is not None else None,
+        "ic50_unit": ic50_unit,
+        "ic50_value_nm": _convert_ic50_to_nm(ic50_value, ic50_unit) if ic50_value is not None else None,
+        "display_name": code,
+    }
+    vec = _get_normalized_vector(cache.get("dipole"))
+    if vec:
+        cache["normalized_vector"] = vec
+        angles = _compute_axis_angles(vec)
+        if angles:
+            cache["angles_deg"] = angles
+            cache["angle_with_z_deg"] = angles.get("z")
+    option_details = _lookup_option_by_code(code)
+    if option_details:
+        cache["normalized_ic50"] = option_details.get("normalized_ic50")
+    _REFERENCE_DB_CACHE[peptide_code] = cache
+    return cache
+
+
+def _get_reference_data(peptide_code: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], str]:
+    requested = (peptide_code or "").strip()
+    selected_code = requested if requested else "WT"
+
+    if selected_code.upper() == "WT":
+        ref = _load_reference_from_files()
+        if ref:
+            return ref, "WT"
+        selected_code = _DEFAULT_DB_REFERENCE_CODE
+
+    ref = _load_reference_from_db(selected_code)
+    return ref, selected_code
+
+
+def _get_angle_from_dipole(dipole: Dict[str, Any]) -> Optional[float]:
+    if not dipole:
+        return None
+    angle_block = dipole.get("angle_with_z_axis")
+    if isinstance(angle_block, dict):
+        angle = angle_block.get("degrees")
+        if angle is not None:
+            try:
+                return float(angle)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 @motif_dipoles_v2.get("/v2/motif_dipoles/reference")
 def motif_reference():
     try:
-        row = _fetch_reference_row(_DB_PATH)
-        if not row:
+        requested_code = request.args.get("peptide_code")
+        ref, selected_code = _get_reference_data(requested_code)
+        if not ref:
             return jsonify({"error": "Referencia no encontrada"}), 404
-        pid, code, pdb_blob, psf_blob = row
-        if not pdb_blob or not psf_blob:
-            return jsonify({"error": "PDB/PSF de referencia no disponibles"}), 404
-        if _DIP is None:
-            return jsonify({"error": "Servicio de dipolo no configurado"}), 500
-        # Calcular dipolo usando bytes en memoria
-        res = _DIP.process_dipole_calculation(pdb_blob, psf_blob)
-        if not res.get("success"):
-            return jsonify({"error": "No se pudo calcular dipolo de referencia"}), 500
-        pdb_text = (
-            pdb_blob.decode("utf-8", errors="replace")
-            if isinstance(pdb_blob, (bytes, bytearray))
-            else str(pdb_blob)
-        )
-        return jsonify({
-            "peptide_code": code,
-            "pid": pid,
-            "dipole": res.get("dipole"),
-            "pdb_text": pdb_text,
+        response = {
+            "dipole": ref.get("dipole"),
+            "pdb_text": ref.get("pdb_text"),
+            "source": ref.get("source"),
+            "pdb_path": ref.get("pdb_path"),
+            "psf_path": ref.get("psf_path"),
+            "selected_reference_code": selected_code,
+        }
+        angles = ref.get("angles_deg")
+        if not angles:
+            vec = _get_normalized_vector(ref.get("dipole"))
+            angles = _compute_axis_angles(vec)
+        if angles:
+            response["angles_deg"] = angles
+            response["angle_with_z_deg"] = angles.get("z")
+        if ref.get("normalized_vector"):
+            response["normalized_vector"] = ref.get("normalized_vector")
+        option_meta = _lookup_option_by_code(selected_code) or {}
+        response.update({
+            "peptide_code": selected_code,
+            "display_name": ref.get("display_name") or option_meta.get("label") or selected_code,
+            "normalized_ic50": ref.get("normalized_ic50", option_meta.get("normalized_ic50")),
+            "ic50_value": ref.get("ic50_value", option_meta.get("ic50_value")),
+            "ic50_unit": ref.get("ic50_unit", option_meta.get("ic50_unit")),
+            "ic50_nm": ref.get("ic50_value_nm", option_meta.get("ic50_nm")),
         })
+        if ref.get("source") == "database":
+            response.update({
+                "pid": ref.get("pid"),
+            })
+        response["reference_options"] = _get_reference_options()
+        return jsonify(response)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -87,40 +443,133 @@ def motif_page():
         require_pair = request.args.get("require_pair", "0") in ("1", "true", "True")
 
         hits = search_toxins(gap_min=gap_min, gap_max=gap_max, require_pair=require_pair, db_path=_DB_PATH)
-        total = len(hits)
-        start = (page - 1) * page_size
-        end = min(total, start + page_size)
-        if start >= total:
-            return jsonify({"count": total, "page": page, "page_size": page_size, "items": []})
+        requested_reference_code = request.args.get("reference_code") or request.args.get("peptide_code")
+        reference, selected_reference_code = _get_reference_data(requested_reference_code)
+        reference_vec = None
+        reference_angles = None
+        ref_angle_z = None
+        if reference:
+            reference_vec = reference.get("normalized_vector") or _get_normalized_vector(reference.get("dipole"))
+            reference_angles = reference.get("angles_deg") or _compute_axis_angles(reference_vec)
+            if reference_angles:
+                ref_angle_z = reference_angles.get("z")
+            else:
+                ref_angle_z = _get_angle_from_dipole(reference.get("dipole"))
+        else:
+            ref_angle_z = None
 
         # Enriquecer con accession_number/peptide_name
         conn = sqlite3.connect(_DB_PATH)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         items = []
-        for h in hits[start:end]:
+        for h in hits:
             peptide_id = h.get("peptide_id") if isinstance(h, dict) else h
-            cur.execute("SELECT accession_number, peptide_name FROM Peptides WHERE peptide_id = ?", (peptide_id,))
+            cur.execute("SELECT accession_number, peptide_name, sequence FROM Peptides WHERE peptide_id = ?", (peptide_id,))
             row = cur.fetchone()
             if not row:
                 continue
             acc = row["accession_number"]
             name = row["peptide_name"]
+            sequence = row["sequence"] if "sequence" in row.keys() else ""
             pdb_path = _FILTERED_DIR / f"{acc}.pdb"
             psf_path = _FILTERED_DIR / f"{acc}.psf"
             if not pdb_path.exists() or not psf_path.exists():
                 # saltar si no está disponible aún
                 continue
             comp = _compute_dipole_from_files(pdb_path, psf_path)
+            dipole = comp["dipole"]
+            vec = _get_normalized_vector(dipole)
+            angles = _compute_axis_angles(vec) if vec else None
+            metrics = _compute_orientation_metrics(vec, reference_vec, angles, reference_angles)
+            item_angle_z = angles.get("z") if angles else _get_angle_from_dipole(dipole)
+
+            if metrics.get("angle_diff_vs_reference") is None and ref_angle_z is not None and item_angle_z is not None:
+                z_delta = abs(item_angle_z - ref_angle_z)
+                metrics["angle_diff_vs_reference"] = {"x": None, "y": None, "z": z_delta}
+                metrics["orientation_score_deg"] = z_delta if metrics.get("orientation_score_deg") is None else metrics["orientation_score_deg"]
+                metrics["vector_angle_vs_reference_deg"] = metrics.get("vector_angle_vs_reference_deg") or z_delta
+
             items.append({
                 "peptide_id": peptide_id,
                 "accession_number": acc,
                 "name": name,
-                "dipole": comp["dipole"],
+                "sequence": sequence,
+                "dipole": dipole,
                 "pdb_text": comp["pdb_text"],
+                "normalized_vector": list(vec) if vec else None,
+                "angles_deg": angles,
+                "angle_with_z_deg": item_angle_z,
+                "angle_diff_vs_reference": metrics.get("angle_diff_vs_reference"),
+                "orientation_score_deg": metrics.get("orientation_score_deg"),
+                "vector_angle_vs_reference_deg": metrics.get("vector_angle_vs_reference_deg"),
+                "angle_diff_l2_deg": metrics.get("angle_diff_l2_deg"),
+                "angle_diff_l1_deg": metrics.get("angle_diff_l1_deg"),
             })
         conn.close()
 
-        return jsonify({"count": total, "page": page, "page_size": page_size, "items": items})
+        if reference_vec is not None:
+            items.sort(key=lambda it: (
+                it.get("orientation_score_deg") is None,
+                it.get("orientation_score_deg", math.inf),
+                it.get("angle_diff_l2_deg", math.inf),
+            ))
+        elif ref_angle_z is not None:
+            items.sort(key=lambda it: (
+                it.get("angle_diff_vs_reference") is None,
+                (it.get("angle_diff_vs_reference") or {}).get("z", math.inf),
+            ))
+
+        total = len(items)
+        if total == 0:
+            return jsonify({
+                "count": 0,
+                "page": 1,
+                "page_size": page_size,
+                "items": [],
+                "reference": {
+                    "angle_with_z_deg": ref_angle_z,
+                    "angles_deg": reference_angles,
+                    "source": reference.get("source") if reference else None,
+                    "pdb_path": reference.get("pdb_path") if reference else None,
+                    "psf_path": reference.get("psf_path") if reference else None,
+                    "normalized_vector": list(reference_vec) if reference_vec else None,
+                    "peptide_code": selected_reference_code if reference else None,
+                    "display_name": reference.get("display_name") if reference else None,
+                    "normalized_ic50": reference.get("normalized_ic50") if reference else None,
+                    "ic50_value": reference.get("ic50_value") if reference else None,
+                    "ic50_unit": reference.get("ic50_unit") if reference else None,
+                    "ic50_nm": reference.get("ic50_value_nm") if reference else None,
+                },
+                "reference_options": _get_reference_options(),
+            })
+
+        max_page = max(1, math.ceil(total / page_size))
+        page = min(page, max_page)
+        start = (page - 1) * page_size
+        end = min(total, start + page_size)
+        paged_items = items[start:end]
+
+        return jsonify({
+            "count": total,
+            "page": page,
+            "page_size": page_size,
+            "items": paged_items,
+            "reference": {
+                "angle_with_z_deg": ref_angle_z,
+                "angles_deg": reference_angles,
+                "source": reference.get("source") if reference else None,
+                "pdb_path": reference.get("pdb_path") if reference else None,
+                "psf_path": reference.get("psf_path") if reference else None,
+                "normalized_vector": list(reference_vec) if reference_vec else None,
+                "peptide_code": selected_reference_code if reference else None,
+                "display_name": reference.get("display_name") if reference else None,
+                "normalized_ic50": reference.get("normalized_ic50") if reference else None,
+                "ic50_value": reference.get("ic50_value") if reference else None,
+                "ic50_unit": reference.get("ic50_unit") if reference else None,
+                "ic50_nm": reference.get("ic50_value_nm") if reference else None,
+            },
+            "reference_options": _get_reference_options(),
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

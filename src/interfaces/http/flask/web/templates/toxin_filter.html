@@ -19,6 +19,70 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- py3Dmol para visualización molecular -->
     <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+    
+    <style>
+        /* Estilos para los botones de modo de visualización */
+        .view-mode-controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 8px;
+            margin: 1rem 1.5rem;
+        }
+        
+        .btn-view-mode {
+            background: white;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-view-mode:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e1;
+        }
+        
+        .btn-view-mode:active {
+            transform: translateY(0);
+        }
+        
+        .btn-view-mode.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-view-mode.active:hover {
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+        
+        .btn-view-mode i {
+            font-size: 16px;
+        }
+        
+        /* Animación al cambiar de modo */
+        @keyframes modeChange {
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .visualization-grid.mode-changing {
+            animation: modeChange 0.3s ease;
+        }
+    </style>
 </head>
 <body class="filter-page">
     <!-- NAVBAR -->
@@ -70,7 +134,12 @@
         <div class="visualization-section" style="display:block;">
             <div class="visualization-card">
                 <div class="card-header">
-                    <h2 class="section-title" style="margin:0;"><i class="fas fa-star"></i> Dipolo de Referencia: μ-TRTX-Cg4a</h2>
+                    <h2 class="section-title reference-section-title" style="margin:0;">
+                        <i class="fas fa-star"></i> Dipolo de Referencia:
+                        <select id="reference-selector" class="reference-selector-dropdown">
+                            <option value="WT" selected>Proteína WT</option>
+                        </select>
+                    </h2>
                 </div>
                 <div class="card-body">
                     <div id="reference-viewer" style="width:100%;height:360px;position:relative;">
@@ -91,6 +160,20 @@
                         <button id="next-page" class="btn btn-secondary">Siguiente <i class="fas fa-chevron-right"></i></button>
                     </div>
                 </div>
+                
+                <!-- Botones de Modo de Visualización -->
+                <div class="view-mode-controls">
+                    <button id="showDipoleBtn" class="btn-view-mode active" data-mode="dipole">
+                        <i class="fas fa-arrows-alt"></i> Vectores Dipolares
+                    </button>
+                    <button id="showDisulfideBtn" class="btn-view-mode" data-mode="disulfide">
+                        <i class="fas fa-link"></i> Puentes Disulfuro
+                    </button>
+                    <button id="showBothBtn" class="btn-view-mode" data-mode="both">
+                        <i class="fas fa-layer-group"></i> Ambos
+                    </button>
+                </div>
+                
                 <div class="card-body">
                     <div id="filtered-grid" class="visualization-grid"></div>
                 </div>
