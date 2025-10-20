@@ -3,24 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Filtro de toxinas Nav1.7 con búsqueda avanzada por motivos y características moleculares">
     <title>Filtro de Toxinas | Proyecto Toxinas</title>
     
-    <!-- Font Awesome para iconos -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Preconexiones -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
+    <!-- Font Awesome - Async con fallback -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     
     <!-- Sistema de diseño -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/filter-page.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/navbar.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/accessibility.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/components.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/filter-page.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/viewer.css')) }}">
     
-    <!-- SheetJS para exportar XLSX -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- py3Dmol para visualización molecular -->
-    <script src="https://3dmol.org/build/3Dmol-min.js"></script>
-    
+    <!-- Critical CSS inline -->
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a202c; background: #f8fafc; }
+        .main-navbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+        .navbar-container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+        .navbar-brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: #4F46E5; font-weight: 600; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        
         /* Estilos para los botones de modo de visualización */
         .view-mode-controls {
             display: flex;
@@ -282,10 +293,19 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/navbar.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-enhancements.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/toxin_filter.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/motif_dipoles.js') }}"></script>
+    <!-- SheetJS (lazy loaded) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+    
+    <!-- py3Dmol (lazy loaded) -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
+    
+    <!-- Plotly (lazy loaded) -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js" defer></script>
+    
+    <!-- Custom scripts con defer -->
+    <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/ui-enhancements.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/toxin_filter.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/motif_dipoles.js') }}" defer></script>
 </body>
 </html>

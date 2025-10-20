@@ -17,6 +17,20 @@ def create_app_v2() -> Flask:
     # Feature flags
     env_flag = os.environ.get('LEGACY_ALIASES_ENABLED', '0').strip().lower()
     app.config['LEGACY_ALIASES_ENABLED'] = env_flag not in ('0', 'false', 'no')
+    app.config['USE_MINIFIED_ASSETS'] = os.environ.get('USE_MINIFIED_ASSETS', '0').strip().lower() in ('1', 'true', 'yes')
+
+    def asset_path(relative_path: str) -> str:
+        """Resolve asset path, preferring minified versions when enabled."""
+        normalized = relative_path.replace('\\', '/').lstrip('/')
+        if app.config['USE_MINIFIED_ASSETS']:
+            base, ext = os.path.splitext(normalized)
+            min_candidate = f"{base}.min{ext}"
+            min_abs_path = os.path.join(app.static_folder, *min_candidate.split('/'))
+            if os.path.exists(min_abs_path):
+                return min_candidate
+        return normalized
+
+    app.jinja_env.globals['asset_path'] = asset_path
 
     # --- Composition Root: instantiate infrastructure and use cases (simple manual DI) ---
     # Config
@@ -201,6 +215,40 @@ def create_app_v2() -> Flask:
             return jsonify({"ok": False, "error": str(ex)}), 500
 
     app.add_url_rule('/v2/health', 'health_v2', health_v2, methods=['GET'])
+
+    
+    # Gzip compression for response bodies
+    try:
+        from flask_compress import Compress
+        Compress(app)
+    except (ImportError, Exception):
+        app.logger.debug("Flask-Compress not available; skipping compression setup")
+    
+    # Cache headers for static assets
+    @app.after_request
+    def add_cache_headers(response):
+        """Add appropriate cache headers to responses"""
+        if response.content_type and 'text/html' in response.content_type:
+            # HTML: short cache for freshness
+            response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 hour
+        elif response.content_type and any(ct in response.content_type for ct in ['text/css', 'application/javascript', 'image/']):
+            # Static assets: long cache (1 year)
+            response.headers['Cache-Control'] = 'public, max-age=31536000'
+            response.headers['Expires'] = 'Wed, 21 Oct 2026 07:28:00 GMT'
+        elif response.content_type and 'application/json' in response.content_type:
+            # API responses: no cache
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        
+        # Security headers
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # Compression header
+        response.headers['Vary'] = 'Accept-Encoding'
+        
+        return response
+    
 
     # Optionally expose legacy-compatible alias routes for the UI during migration
     if app.config.get('LEGACY_ALIASES_ENABLED', False):

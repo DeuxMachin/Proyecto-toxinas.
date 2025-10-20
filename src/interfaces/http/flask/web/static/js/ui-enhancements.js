@@ -3,12 +3,22 @@
  * Efectos visuales útiles para mejorar la experiencia de usuario
  */
 
-document.addEventListener('DOMContentLoaded', function() {
+function initializeUIEnhancements() {
+    if (initializeUIEnhancements.initialized) {
+        return;
+    }
+    initializeUIEnhancements.initialized = true;
     initializeAnimations();
     initializeToggleControls();
     initializeFormEnhancements();
     initializeLoadingStates();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeUIEnhancements, { once: true });
+} else {
+    initializeUIEnhancements();
+}
 
 /**
  * Inicializa animaciones de entrada para elementos

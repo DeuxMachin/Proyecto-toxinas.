@@ -392,8 +392,16 @@ class DualViewManager {
     }
 }
 
-// Initialize dual view manager when DOM is loaded
-document.addEventListener("DOMContentLoaded", () => {
+function initializeDualViewManager() {
+    if (window.dualViewManager) {
+        return;
+    }
     window.dualViewManager = new DualViewManager();
     window.dualViewManager.setupAutoGraphUpdate();
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeDualViewManager, { once: true });
+} else {
+    initializeDualViewManager();
+}

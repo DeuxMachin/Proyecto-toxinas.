@@ -2,9 +2,19 @@
  * NAVBAR - Sistema de navegación unificado
  */
 
-document.addEventListener('DOMContentLoaded', function() {
+function initializeNavbarOnce() {
+    if (initializeNavbarOnce.initialized) {
+        return;
+    }
+    initializeNavbarOnce.initialized = true;
     initializeNavbar();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeNavbarOnce, { once: true });
+} else {
+    initializeNavbarOnce();
+}
 
 function initializeNavbar() {
     // Marcar página activa

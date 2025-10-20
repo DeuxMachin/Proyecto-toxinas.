@@ -341,11 +341,13 @@ input:not(:checked) + .slider .slider-text:before {
 .residue-list li {
     padding: 4px 8px;
     margin-bottom: 3px;
-    background: #f8f9fa;
+    background: #f1f8ff; /* Slightly stronger background */
     border-radius: 3px;
-    font-size: 0.85em;
+    font-size: 0.95em; /* Larger for readability */
     display: flex;
     justify-content: space-between;
+    color: #1a1a1a; /* High contrast */
+    font-weight: 700;
 }
 
 .residue-list li:nth-child(1) { background: #fff3cd; border-left: 3px solid #ffc107; }

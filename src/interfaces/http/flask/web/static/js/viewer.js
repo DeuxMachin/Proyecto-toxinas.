@@ -1,4 +1,13 @@
-document.addEventListener("DOMContentLoaded", async () => {
+async function initializeViewerPage() {
+    if (initializeViewerPage.initialized) {
+        return;
+    }
+    initializeViewerPage.initialized = true;
+    
+    if (typeof molstar === "undefined") {
+        console.warn("Mol* viewer library not yet loaded");
+        return;
+    }
     //Extremos los datos de la proteina 
     const proteinData = JSON.parse(document.getElementById("protein-data").textContent);
     
@@ -355,4 +364,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
     }
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeViewerPage, { once: true });
+} else {
+    initializeViewerPage();
+}

@@ -62,9 +62,10 @@
 }
 
 .page-subtitle {
-    color: var(--gray-600);
+    color: var(--gray-800);
     font-size: var(--text-lg);
     margin: 0;
+    font-weight: 500;
 }
 
 /* === CONTROLES === */
@@ -92,12 +93,41 @@
 }
 
 .control-label {
-    font-weight: 600;
-    color: var(--gray-700);
-    font-size: var(--text-sm);
+    font-weight: 800;
+    color: #1a1a1a;
+    font-size: var(--text-base);
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Asegurar contraste máximo en los selectores del viewer */
+#groupSelect,
+#proteinSelect,
+#family-export-type-selector,
+#export-type-selector,
+#family-selector,
+#wt-family-selector,
+#wt-export-type-selector {
+    color: #1a1a1a !important;
+    font-weight: 800 !important;
+    background-color: #ffffff !important;
+    font-size: var(--text-base) !important;
+}
+
+#groupSelect option,
+#proteinSelect option,
+#family-export-type-selector option,
+#export-type-selector option,
+#family-selector option,
+#wt-family-selector option,
+#wt-export-type-selector option {
+    color: #1a1a1a !important;
+    background-color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: var(--text-base) !important;
 }
 
 .control-icon {
@@ -317,8 +347,8 @@
 
 .toggle-label {
     font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--gray-700);
+    font-weight: 700;
+    color: var(--gray-900);
 }
 
 /* === ANÁLISIS DETALLADO === */
@@ -475,7 +505,8 @@
 
 .metric-label {
     font-size: var(--text-sm);
-    color: var(--gray-600);
+    color: var(--gray-800);
+    font-weight: 500;
 }
 
 /* === ANÁLISIS DETALLADO (MANTENER ESTILOS ORIGINALES) === */
@@ -502,14 +533,16 @@
 
 .analysis-panel h5 {
     font-size: var(--text-xl);
-    color: var(--gray-800);
+    color: #1a1a1a;
     margin-bottom: var(--space-4);
     margin-top: var(--space-6);
+    font-weight: 800;
 }
 
 .analysis-panel h6 {
     font-size: var(--text-lg);
-    color: var(--gray-700);
+    color: #1a1a1a !important;
+    font-weight: 800 !important;
     margin-bottom: var(--space-3);
 }
 
@@ -530,7 +563,7 @@
 .info-item .label {
     display: block;
     font-weight: 600;
-    color: var(--gray-600);
+    color: var(--gray-800);
     font-size: var(--text-sm);
     margin-bottom: var(--space-2);
 }
@@ -556,6 +589,15 @@
     background: linear-gradient(135deg, var(--gray-50) 0%, white 100%);
     border-radius: var(--radius-lg);
     border: 2px solid var(--gray-200);
+    color: #1a1a1a !important;
+}
+
+.metric-card h6,
+.top-metric-column h6 {
+    color: #1a1a1a !important;
+    font-weight: 800 !important;
+    font-size: var(--text-base) !important;
+    margin-bottom: var(--space-3) !important;
 }
 
 .metric-details {
@@ -568,7 +610,8 @@
 .metric-mean,
 .top-residues {
     font-size: var(--text-sm);
-    color: var(--gray-700);
+    color: #1a1a1a !important;
+    font-weight: 700 !important;
 }
 
 .residue-list {
@@ -582,6 +625,8 @@
     margin-bottom: var(--space-2);
     border-radius: var(--radius-sm);
     font-size: var(--text-sm);
+    color: #1a1a1a; /* High contrast text */
+    font-weight: 700; /* Emphasize readability */
 }
 
 .export-controls {
@@ -622,10 +667,11 @@
 }
 
 .comparison-description {
-    color: var(--gray-700);
+    color: var(--gray-900);
     margin-bottom: var(--space-4);
     font-size: var(--text-sm);
     line-height: 1.5;
+    font-weight: 500;
 }
 
 .comparison-description code {
@@ -712,7 +758,7 @@
 
 .property-label {
     font-weight: 600;
-    color: var(--gray-600);
+    color: var(--gray-800);
     font-size: var(--text-sm);
 }
 
@@ -724,7 +770,8 @@
 
 .property-unit {
     font-size: var(--text-sm);
-    color: var(--gray-600);
+    color: var(--gray-800);
+    font-weight: 500;
 }
 
 .direction-value,
@@ -778,8 +825,9 @@
 }
 
 .export-modal .modal-subtitle {
-    color: var(--gray-700);
+    color: var(--gray-900);
     margin-bottom: var(--space-4);
+    font-weight: 600;
 }
 
 .export-modal .modal-progress {
@@ -806,7 +854,8 @@
 
 .export-modal .modal-details {
     font-size: var(--text-sm);
-    color: var(--gray-700);
+    color: var(--gray-900);
+    font-weight: 500;
 }
 
 /* Toasts */

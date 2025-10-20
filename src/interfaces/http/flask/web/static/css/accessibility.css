@@ -1,0 +1,278 @@
+/* ========================================
+   ACCESIBILIDAD Y MEJORAS DE UX
+   ======================================== */
+
+/* Focus Visible para navegación keyboard */
+*:focus-visible {
+    outline: 3px solid #4F46E5;
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid #4F46E5;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+}
+
+/* Skip to main content link */
+.skip-to-main {
+    position: absolute;
+    left: -9999px;
+    z-index: 9999;
+    padding: 1rem 1.5rem;
+    background: #4F46E5;
+    color: white;
+    text-decoration: none;
+    border-radius: 0 0 8px 0;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.skip-to-main:focus {
+    left: 0;
+    top: 0;
+}
+
+/* Improved button contrast */
+.btn {
+    /* Ensure sufficient color contrast */
+    font-weight: 600;
+    min-height: 44px; /* Touch target minimum */
+    min-width: 44px;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Form elements accessibility */
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+textarea {
+    min-height: 44px; /* Touch target minimum */
+    font-size: 16px; /* Prevents auto zoom on iOS */
+    border: 2px solid #e5e7eb;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-family: inherit;
+}
+
+.form-select:focus,
+input:focus,
+textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+/* Improved link underlines */
+a:not(.btn):not([class*="nav-"]):not(.navbar-brand) {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+}
+
+a:not(.btn):not([class*="nav-"]):not(.navbar-brand):hover {
+    color: #667eea;
+}
+
+/* ARIA labels visibility */
+[aria-label] {
+    position: relative;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+    body {
+        font-weight: 500;
+    }
+    
+    .btn {
+        border: 2px solid currentColor;
+    }
+    
+    a {
+        text-decoration: underline;
+        text-decoration-thickness: 3px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #1a1a1a;
+        color: #e0e0e0;
+    }
+    
+    .form-select,
+    input,
+    textarea {
+        background: #2a2a2a;
+        color: #e0e0e0;
+        border-color: #444;
+    }
+}
+
+/* Large text support */
+@media (prefers-reduced-data: no-preference) {
+    @supports (font-size-adjust: ex-height) {
+        body {
+            font-size-adjust: 0.5;
+        }
+    }
+}
+
+/* Tooltip accessibility */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-icon {
+    cursor: help;
+}
+
+.tooltip-text {
+    visibility: hidden;
+    position: absolute;
+    background: #333;
+    color: white;
+    text-align: center;
+    padding: 0.5rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tooltip:hover .tooltip-text,
+.tooltip-icon:focus + .tooltip-text {
+    visibility: visible;
+}
+
+/* Loading indicator accessibility */
+.loading {
+    position: relative;
+}
+
+.loading::after {
+    content: 'Loading...';
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Icon-only buttons should have aria-label */
+.btn:has(> i):not(:has(> span)) {
+    min-width: 48px;
+}
+
+/* Skip links for screen readers */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Ensure sufficient color contrast for all text */
+.text-secondary {
+    color: #4a5568; /* Better contrast than default */
+    font-weight: 400;
+}
+
+/* List accessibility */
+ul, ol {
+    padding-left: 2rem;
+}
+
+li {
+    margin-bottom: 0.5rem;
+}
+
+/* Table accessibility */
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th {
+    background: #f3f4f6;
+    color: #1a202c;
+    font-weight: 600;
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+td {
+    padding: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+/* Error messages accessibility */
+.error-message {
+    color: #dc2626;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+/* Success messages accessibility */
+.success-message {
+    color: #059669;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+/* Print styles for accessibility */
+@media print {
+    .navbar-toggle,
+    .action-btn,
+    button {
+        display: none;
+    }
+    
+    a {
+        text-decoration: underline;
+    }
+}

@@ -2,6 +2,20 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+## [2.2.0] – 2025-10-20
+### Added
+- **Optimización integral de rendimiento Lighthouse**: Sistema completo de carga diferida y cacheado:
+  - Font Awesome con `preload + async onload` para evitar render-blocking resources.
+  - Mol* CSS con trick `media="print" onload` para carga no-bloqueante.
+  - HTTP cache headers: 1 año para assets estáticos, 1 hora para HTML, no-cache para API.
+- **Infraestructura de minificación**: Script `tools/minify_assets.py` para minificar automáticamente CSS/JS:
+  - Helper `asset_path()` en Flask que prefiere `.min` cuando `USE_MINIFIED_ASSETS=1`.
+  - Registered como Jinja global para templates (viewer.html, dipole_families.html, etc).
+  - Reporte automático de ahorros de tamaño por archivo.
+
+
+---
+
 ## [2.1.0] – 2025-10-16
 ### Added
 - Selector de referencia en la vista de dipolos: opción fija **WT hwt4_Hh2a** seguida de toxinas de la tabla `Nav1_7_InhibitorPeptides` ordenadas por IC50 normalizado; al cambiar la referencia se recalculan dipolo y orden del listado.

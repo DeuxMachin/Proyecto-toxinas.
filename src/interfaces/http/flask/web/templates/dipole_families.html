@@ -3,19 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Análisis de familias de toxinas Nav1.7 con vectores dipolares y comparación estructural">
     <title>Análisis de Familias | Proyecto Toxinas</title>
     
-    <!-- Font Awesome para iconos -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Preconexiones -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
+    <!-- Font Awesome - Async con fallback -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    
+    <!-- Critical CSS inline -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a202c; background: #f8fafc; }
+        .main-navbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+        .navbar-container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+        .navbar-brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: #4F46E5; font-weight: 600; }
+        .page-header { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 2rem 1rem; border-bottom: 1px solid #e2e8f0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+    </style>
     
     <!-- Sistema de diseño -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/families-page.css') }}">
-    
-    <!-- py3Dmol para visualización molecular -->
-    <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/navbar.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/accessibility.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/components.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/families-page.css')) }}">
 </head>
 <body class="families-page">
     <!-- NAVBAR -->
@@ -27,6 +43,12 @@
             </a>
             
             <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.home_page_v2') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-home"></i></span>
+                        <span>Inicio</span>
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="nav-link">
                         <span class="nav-icon"><i class="fas fa-microscope"></i></span>
@@ -163,9 +185,15 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/navbar.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/ui-enhancements.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dipole_family_analysis.js') }}"></script>
+    <!-- py3Dmol (lazy loaded) -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
+    
+    <!-- Plotly (lazy loaded) -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js" defer></script>
+    
+    <!-- Custom scripts con defer -->
+    <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/ui-enhancements.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/dipole_family_analysis.js')) }}" defer></script>
 </body>
 </html>
