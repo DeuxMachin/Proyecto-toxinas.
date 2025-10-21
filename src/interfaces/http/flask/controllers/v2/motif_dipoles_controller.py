@@ -13,7 +13,7 @@ motif_dipoles_v2 = Blueprint("motif_dipoles_v2", __name__)
 
 # Defaults (overridden via configure_motif_dipoles_dependencies)
 _DB_PATH: str = "database/toxins.db"
-_FILTERED_DIR: Path = Path("tools/filtered").resolve()
+_FILTERED_DIR: Path = Path("pdbs/filtered_psfs").resolve()
 _DIP = None  # type: DipoleAdapter
 _REFERENCE_PDB: Optional[Path] = None
 _REFERENCE_PSF: Optional[Path] = None

@@ -23,7 +23,7 @@ peptides_data = [
         "accession_number": "P84507", "peptide_code": "β-TRTX-Cm1a", "sequence": "DCLGWFKSCDPKNDKCCKNYTCSRRDRWCKYDL", "pharmacophore_match": "WF–S–WCKY", "residue_count": 7, "ic50": 5.1, "unit": "μM", "pdb_download_link": "https://files.rcsb.org/download/5EPM.pdb"
     },
     {
-        "accession_number": "P0DL84", "peptide_code": "β-TRTX-Cd1a", "sequence": "DCLGWFKSCDPKNDKCCKNYSCSRRDRWCKYDL", "pharmacophore_match": "WF–S–WCKY", "residue_count": 7, "ic50": 2.2, "unit": "nM", "pdb_download_link": "https://alphafold.ebi.ac.uk/files/AF-P0DL84-F1-model_v4.pdb"
+        "accession_number": "P0DL84", "peptide_code": "β-TRTX-Cd1a", "sequence": "DCLGWFKSCDPKNDKCCKNYSCSRRDRWCKYDL", "pharmacophore_match": "WF–S–WCKY", "residue_count": 7, "ic50": 2.2, "unit": "μM", "pdb_download_link": "https://alphafold.ebi.ac.uk/files/AF-P0DL84-F1-model_v4.pdb"
     },
     {
         "accession_number": "P84508", "peptide_code": "β-TRTX-Cm1b", "sequence": "DCLGWFKSCDPKNDKCCKNYTCSRRDRWCKYYL", "pharmacophore_match": "WF–S–WCKY", "residue_count": 7, "ic50": 0.2, "unit": "μM", "pdb_download_link": "https://files.rcsb.org/download/6BTV.pdb"

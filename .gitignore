@@ -12,6 +12,10 @@ data/processed/
 data/processed/*.csv
 data/processed/*.json
 pdbs/*.pdb
+pdbs/filtered/*.pdb
+pdbs/filtered_psfs/*.psf
+pdbs/filtered_psfs/*.pdb
+pdbs/filtered_psfs/logs/*.log
 psfs/*.psf
 processed/*.json
 tools/test_output/*.pdb

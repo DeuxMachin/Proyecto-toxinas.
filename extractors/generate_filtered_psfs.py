@@ -247,6 +247,60 @@ exit
             "stdout": out_text,
         }
 
+    def process_batch_pdbs(
+        self,
+        input_dir: Path,
+        output_dir: Path,
+        *,
+        chain: Optional[str] = None,
+        disulfide_cutoff: Optional[float] = None,
+        verbose: bool = False,
+    ) -> Tuple[int, int]:
+        """Procesa todos los archivos .pdb en input_dir y genera PSFs/PDBs en output_dir.
+
+        Retorna (procesados_ok, total_procesados).
+        """
+        input_dir = Path(input_dir).expanduser().resolve()
+        output_dir = Path(output_dir).expanduser().resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        pdb_files = list(input_dir.glob("*.pdb"))
+        if not pdb_files:
+            print(f"No se encontraron archivos .pdb en {input_dir}")
+            return 0, 0
+
+        total = len(pdb_files)
+        ok_count = 0
+        print(f"Procesando {total} PDBs de {input_dir} a {output_dir}")
+
+        for i, pdb_file in enumerate(pdb_files, 1):
+            stem = pdb_file.stem
+            print(f"[{i}/{total}] {stem}: procesando...", end="", flush=True)
+            try:
+                result = self.generate_psf_from_local_pdb(
+                    pdb_file,
+                    output_dir,
+                    chain=chain,
+                    disulfide_cutoff=disulfide_cutoff,
+                    verbose=False,  # Evitar output duplicado
+                )
+                if result["ok"]:
+                    ok_count += 1
+                    print(" OK")
+                    if verbose:
+                        print(f"  PSF: {result['psf']}")
+                        print(f"  PDB: {result['pdb']}")
+                        print(f"  Log: {result['log']}")
+                else:
+                    print(" FAIL")
+                    if verbose:
+                        print(tail_text(result["stdout"], 20))
+            except Exception as e:
+                print(f" ERROR: {e}")
+
+        print(f"\nResumen batch: OK={ok_count}/{total}")
+        return ok_count, total
+
     def process_all_filtered(self, gap_min=3, gap_max=6, require_pair=False):
         hits = self.get_filtered_peptides(gap_min, gap_max, require_pair)
         total = len(hits)
@@ -309,10 +363,11 @@ exit
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Genera PSF/PDB desde la base de datos o desde un archivo PDB suelto."
+        description="Genera PSF/PDB desde la base de datos, un PDB suelto, o un batch de PDBs."
     )
     parser.add_argument("--pdb-file", type=Path, help="Ruta a un archivo PDB a procesar directamente.")
-    parser.add_argument("--output-dir", type=Path, help="Directorio de salida opcional para el modo --pdb-file.")
+    parser.add_argument("--input-dir", type=Path, help="Carpeta con archivos .pdb a procesar en batch.")
+    parser.add_argument("--output-dir", type=Path, help="Directorio de salida para modos --pdb-file o --input-dir.")
     parser.add_argument("--chain", default="PROA", help="ID de cadena a usar en psfgen (default: PROA).")
     parser.add_argument("--disulfide-cutoff", type=float, default=2.3,
                         help="Distancia de corte para detectar puentes disulfuro (Å).")
@@ -328,6 +383,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         default_chain=args.chain,
         disulfide_cutoff=args.disulfide_cutoff,
     )
+
+    if args.input_dir:
+        # Modo batch: procesar todos los PDBs en input_dir
+        output_dir = args.output_dir or (root_dir / "pdbs/filtered_psfs")
+        ok_count, total = gen.process_batch_pdbs(
+            args.input_dir,
+            output_dir,
+            chain=args.chain,
+            disulfide_cutoff=args.disulfide_cutoff,
+            verbose=args.verbose,
+        )
+        return 0 if ok_count == total else 1
 
     if args.pdb_file:
         result = gen.generate_psf_from_local_pdb(

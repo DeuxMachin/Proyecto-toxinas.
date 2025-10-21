@@ -165,7 +165,7 @@ def create_app_v2() -> Flask:
         from src.interfaces.http.flask.controllers.v2.motif_dipoles_controller import motif_dipoles_v2, configure_motif_dipoles_dependencies
         configure_motif_dipoles_dependencies(
             db_path=getattr(cfg, 'db_path', 'database/toxins.db'),
-            filtered_dir=os.path.join(os.getcwd(), 'tools', 'filtered'),
+            filtered_dir=os.path.join(os.getcwd(), 'pdbs', 'filtered_psfs'),
             dipole_adapter=dipole_service,
             reference_pdb=getattr(cfg, 'wt_reference_path', None),
             reference_psf=getattr(cfg, 'wt_reference_psf_path', None),
