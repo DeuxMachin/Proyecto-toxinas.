@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 import os, importlib
 import os
 import importlib
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 def create_app_v2() -> Flask:
@@ -31,6 +32,10 @@ def create_app_v2() -> Flask:
         return normalized
 
     app.jinja_env.globals['asset_path'] = asset_path
+
+    # Trust proxy headers from Nginx Proxy Manager so scheme/host/port are correct behind SSL
+    # Forwarded headers: X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Port, X-Forwarded-Prefix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     # --- Composition Root: instantiate infrastructure and use cases (simple manual DI) ---
     # Config

@@ -2,7 +2,7 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
-## [2.3.0] – 2025-10-20
+## [2.2.1] – 2025-10-20
 ### Added
 - **Dockerización local completa del proyecto**:
   - Se creó un `Dockerfile` de producción que incluye la base de datos, archivos PDB, PSF y carpeta filtered, permitiendo levantar la app Flask y acceder a la UI y API desde el navegador.

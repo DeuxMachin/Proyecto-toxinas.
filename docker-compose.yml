@@ -4,6 +4,7 @@ services:
     build: .
     image: toxinas:v2
     container_name: toxinas_app
+    restart: unless-stopped
     environment:
       - PROJECT_ROOT=/app
       - HOST=0.0.0.0
@@ -17,7 +18,8 @@ services:
       # - WT_REFERENCE_PATH=/app/pdbs/WT/generated/hwt4_Hh2a_WT.pdb
       # - WT_REFERENCE_PSF_PATH=/app/pdbs/WT/generated/hwt4_Hh2a_WT.psf
     ports:
-      - "5001:5001"
+      # Bind only to localhost for exposure via Nginx Proxy Manager on the VPS
+  - "8087:5001"
     # volumes:
     #   - ./database:/app/database
     #   - ./pdbs:/app/pdbs
@@ -34,6 +36,7 @@ services:
     build: .
     image: toxinas:v2
     container_name: toxinas_dev
+    restart: unless-stopped
     environment:
       - PROJECT_ROOT=/app
       - HOST=0.0.0.0
