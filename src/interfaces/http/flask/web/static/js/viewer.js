@@ -84,6 +84,10 @@ async function initializeViewerPage() {
                 // Cargar la estructura usando el método correcto 
                 await plugin.loadStructureFromUrl(blobUrl, 'pdb');
                 
+                // Notificar al dual view manager que la estructura se cargó
+                if (window.dualViewManager) {
+                    window.dualViewManager.markStructureLoaded();
+                }
                 
                 const graphTab = document.querySelector('[data-tab="graph-view"]');
                 if (graphTab && graphTab.classList.contains('active')) {
@@ -100,6 +104,11 @@ async function initializeViewerPage() {
             }
         } catch (error) {
             alert("Error al cargar la estructura: " + error.message);
+            
+            // Notificar error de carga de la estructura
+            if (window.dualViewManager) {
+                window.dualViewManager.markStructureLoaded(); // Marcar como "cargado" aunque haya error
+            }
         }
     }
 
@@ -300,12 +309,18 @@ async function initializeViewerPage() {
                     // Notify dual view manager
                     if (window.dualViewManager) {
                         window.dualViewManager.onLocalStructureLoaded(file.name);
+                        window.dualViewManager.markStructureLoaded();
                     }
                     
                 } catch (error) {
                     alert('Error cargando PDB: ' + error.message);
                     loadPdbBtn.innerHTML = '<i class="fas fa-upload"></i> Cargar PDB';
                     loadPdbBtn.style.background = '';
+                    
+                    // Notificar error de carga
+                    if (window.dualViewManager) {
+                        window.dualViewManager.markStructureLoaded();
+                    }
                 }
             }
         });

@@ -6,6 +6,15 @@ class DualViewManager {
         this.currentDipoleData = null;
         this.currentAnalysisView = null; // 'graph' o 'dipole'
         
+        // Timer para medir carga de datos
+        this.loadingTimer = null;
+        this.loadingStartTime = null;
+        this.structureLoaded = false;
+        this.graphLoaded = false;
+        this.loadingReportShown = false;
+        this.structureLoadTime = null;
+        this.graphLoadTime = null;
+        
         this.initializeEventListeners();
         this.updatePy3DmolButtonState();
     }
@@ -265,19 +274,39 @@ class DualViewManager {
                 this.currentAnalysisView = null;
             }
         }
+        
+        // Iniciar timer de carga
+        this.startLoadingTimer(name || `${group}_${id}`);
     }
 
-    // Called when dipole calculation is completed
-    onDipoleCalculated(dipoleData) {
-        this.currentDipoleData = dipoleData;
-        this.dipoleCalculated = true;
-        this.updatePy3DmolButtonState();
+    // Called when a local structure file is loaded
+    onLocalStructureLoaded(fileName) {
+        // Reset dipole state when changing to local file
+        this.resetDipoleState();
         
-        // Update dipole details in the analysis panel
-        this.updateDipoleDetails(dipoleData);
+        // Update labels
+        this.updateGraphAnalysisLabel(`Archivo local: ${fileName}`);
+        this.updateStructureLabel(`Archivo local: ${fileName}`);
         
-        // Automatically create py3Dmol visualization with dipole
-        this.createPy3DmolWithDipole();
+        // Iniciar timer para archivo local
+        this.startLoadingTimer(`Archivo local: ${fileName}`);
+        
+        // Hide dipole controls for local files (unless PSF is also loaded)
+        const dipoleToggleBtn = document.getElementById('toggle-dipole-analysis');
+        const dipoleStatusContainer = document.getElementById('dipole-status-container');
+        
+        if (dipoleToggleBtn) dipoleToggleBtn.style.display = 'none';
+        if (dipoleStatusContainer) dipoleStatusContainer.style.display = 'none';
+    }
+    
+    // Called when a PSF file is loaded
+    onPSFLoaded(fileName) {
+        // Enable dipole controls when PSF is loaded
+        const dipoleToggleBtn = document.getElementById('toggle-dipole-analysis');
+        const dipoleStatusContainer = document.getElementById('dipole-status-container');
+        
+        if (dipoleToggleBtn) dipoleToggleBtn.style.display = 'block';
+        if (dipoleStatusContainer) dipoleStatusContainer.style.display = 'flex';
     }
 
     // Update dipole details in the analysis panel
@@ -328,6 +357,25 @@ class DualViewManager {
             this.hideAllAnalysisViews();
             this.currentAnalysisView = null;
         }
+    }
+
+    // Método llamado cuando se calcula el dipolo
+    onDipoleCalculated(dipoleData) {
+        this.dipoleCalculated = true;
+        this.currentDipoleData = dipoleData;
+        
+        // Actualizar el estado del botón py3Dmol
+        this.updatePy3DmolButtonState();
+        
+        // Actualizar los detalles del dipolo en la interfaz
+        this.updateDipoleDetails(dipoleData);
+        
+        // Mostrar la vista de análisis del dipolo si no está visible
+        if (this.currentAnalysisView !== 'dipole') {
+            this.toggleAnalysisView('dipole');
+        }
+        
+        console.log('Dipole calculated and UI updated:', dipoleData);
     }
 
     // Create py3Dmol visualization with dipole automatically
@@ -388,6 +436,134 @@ class DualViewManager {
                 childList: true,
                 subtree: true
             });
+        }
+    }
+
+    // ===== MÉTODOS DEL TIMER DE CARGA =====
+    
+    // Iniciar el timer de carga cuando se selecciona una proteína
+    startLoadingTimer(proteinName) {
+        // Limpiar timer anterior si existe
+        if (this.loadingTimer) {
+            clearTimeout(this.loadingTimer);
+        }
+        
+        // Reset timer state antes de iniciar uno nuevo
+        this.loadingStartTime = performance.now();
+        this.structureLoaded = false;
+        this.graphLoaded = false;
+        this.loadingReportShown = false;
+        this.structureLoadTime = null;
+        this.graphLoadTime = null;
+        
+        console.log(`⏱️ INICIANDO CARGA DE DATOS PARA: ${proteinName}`);
+        console.log(`📊 Componentes a cargar: [Vista 3D Mol*, Análisis de Grafo]`);
+        
+        // Obtener estadísticas del caché
+        this.logCacheStats();
+        
+        // Timeout de seguridad (30 segundos máximo)
+        this.loadingTimer = setTimeout(() => {
+            this.showLoadingResults(true);
+        }, 30000);
+    }
+    
+    // Marcar cuando la estructura 3D se ha cargado
+    markStructureLoaded() {
+        this.structureLoaded = true;
+        this.structureLoadTime = performance.now() - this.loadingStartTime;
+        console.log(`✅ Vista 3D Mol* CARGADA (${this.structureLoadTime.toFixed(2)}ms)`);
+        this.checkLoadingComplete();
+    }
+    
+    // Marcar cuando el grafo se ha cargado
+    markGraphLoaded() {
+        this.graphLoaded = true;
+        this.graphLoadTime = performance.now() - this.loadingStartTime;
+        console.log(`✅ Análisis de Grafo CARGADO (${this.graphLoadTime.toFixed(2)}ms)`);
+        this.checkLoadingComplete();
+    }
+    
+    // Verificar si ambos componentes han terminado de cargar
+    checkLoadingComplete() {
+        if (this.structureLoaded && this.graphLoaded) {
+            this.showLoadingResults(false);
+        }
+    }
+    
+    // Mostrar resultados finales del timer
+    showLoadingResults(timeout = false) {
+        if (!this.loadingStartTime || this.loadingReportShown) {
+            return;
+        }
+        
+        // Marcar que ya se mostró el reporte
+        this.loadingReportShown = true;
+        
+        const endTime = performance.now();
+        const totalTime = endTime - this.loadingStartTime;
+        const proteinName = this.currentDatabaseProtein ? 
+            (this.currentDatabaseProtein.name || `${this.currentDatabaseProtein.group}_${this.currentDatabaseProtein.id}`) : 
+            'Proteína desconocida';
+        
+        // Limpiar timer
+        if (this.loadingTimer) {
+            clearTimeout(this.loadingTimer);
+            this.loadingTimer = null;
+        }
+        
+        // Mostrar resultados en consola de manera simple y profesional
+        console.log(`TIMER DE CARGA COMPLETADO
+Proteína: ${proteinName}
+Tiempo Total: ${totalTime.toFixed(2)} ms${timeout ? ' (TIMEOUT)' : ''}
+
+COMPONENTES CARGADOS:
+• Vista 3D Mol*: ${this.structureLoaded ? `${this.structureLoadTime?.toFixed(2)}ms` : 'PENDIENTE'}
+• Análisis de Grafo: ${this.graphLoaded ? `${this.graphLoadTime?.toFixed(2)}ms` : 'PENDIENTE'}
+
+Estado: ${this.structureLoaded && this.graphLoaded ? 'TODOS LOS DATOS CARGADOS' : 'CARGA INCOMPLETA'}`);
+        
+        // Log adicional para análisis
+        console.log(`📈 Resumen de carga - ${proteinName}:`, {
+            proteina: proteinName,
+            tiempoTotal: `${totalTime.toFixed(2)}ms`,
+            componentes: {
+                vista3D: {
+                    cargado: this.structureLoaded,
+                    tiempo: this.structureLoadTime ? `${this.structureLoadTime.toFixed(2)}ms` : null
+                },
+                grafo: {
+                    cargado: this.graphLoaded,
+                    tiempo: this.graphLoadTime ? `${this.graphLoadTime.toFixed(2)}ms` : null
+                }
+            },
+            completo: this.structureLoaded && this.graphLoaded,
+            timeout: timeout
+        });
+        
+        // NO resetear el estado aquí - se resetea cuando se inicia un nuevo timer
+    }
+    
+    // ===== MÉTODOS DE ESTADÍSTICAS DE CACHÉ =====
+    
+    // Mostrar estadísticas del caché en consola
+    async logCacheStats() {
+        try {
+            const response = await fetch('/v2/cache/stats');
+            const data = await response.json();
+            
+            if (data.cache_stats) {
+                const stats = data.cache_stats;
+                console.log(`💾 ESTADÍSTICAS DEL CACHÉ:
+• Grafos almacenados: ${stats.graphs}
+• Estructuras 3D: ${stats.structures}
+• Vistas previas: ${stats.previews}
+• Tamaño total: ${stats.total_size_mb} MB
+
+📈 Sistema de caché: ${data.cache_enabled ? 'ACTIVADO' : 'DESACTIVADO'}`);
+            }
+        } catch (error) {
+            console.log('💾 Sistema de caché: No disponible');
         }
     }
 }

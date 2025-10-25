@@ -1,5 +1,15 @@
 document.addEventListener("DOMContentLoaded", async () => {
     
+    // Configurar Plotly globalmente para optimizar rendimiento de canvas
+    if (typeof Plotly !== 'undefined') {
+        Plotly.setPlotConfig({
+            displayModeBar: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
+            willReadFrequently: true
+        });
+    }
+    
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
     const propertiesContainer = document.querySelector('.graph-properties-container');
@@ -51,6 +61,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             zaxis: { title: 'z' },
             aspectmode: 'data'
         }
+    }, {
+        displayModeBar: true,
+        displaylogo: false,
+        modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
+        willReadFrequently: true
     });
     
     // Eventos para actualizar automaticamente el grafo
@@ -115,18 +130,37 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
 
             // El backend ahora retorna trazas scatter3d y layout.scene para vista 3D real
-            Plotly.react(graphPlotElement, data.plotData, data.layout);
+            Plotly.react(graphPlotElement, data.plotData, data.layout, {
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
+                willReadFrequently: true
+            });
             
             updateBasicStructuralInfo(data.properties, granularity);
             updateAdvancedMetrics(data); 
             analyzeMolstarStructure();
+
+            // Notificar al dual view manager que el grafo se cargó
+            if (window.dualViewManager) {
+                window.dualViewManager.markGraphLoaded();
+            }
 
         } catch (error) {
             clearAnalysisPanel();
             Plotly.react(graphPlotElement, [], {
                 title: 'Error al cargar el grafo: ' + error.message,
                 height: 500
+            }, {
+                displayModeBar: false,
+                displaylogo: false,
+                willReadFrequently: true
             });
+            
+            // Notificar error de carga del grafo
+            if (window.dualViewManager) {
+                window.dualViewManager.markGraphLoaded(); // Marcar como "cargado" aunque haya error
+            }
         } finally {
             hideLoading(graphPlotElement);
         }
@@ -223,6 +257,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         Plotly.react(element, [], {
             title: 'Cargando grafo...',
             height: 500
+        }, {
+            displayModeBar: false,
+            displaylogo: false,
+            willReadFrequently: true
         });
     }
     

@@ -2,6 +2,17 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+## [2.4.1] – 2025-10-24
+### Changed
+- Rediseño completo del navbar con paleta de colores oscura profesional.
+- Eliminación de gradientes y transparencias, reemplazados por colores sólidos.
+
+### Fixed
+- Corrección de conflictos de CSS inline en páginas HTML que sobrescribían estilos del navbar.
+- Agregado del enlace "Inicio" al navbar en la vista de filtros para navegación consistente.
+
+---
+
 ## [2.4.0] – 2025-10-24
 ### Added
 - Botón de descarga para la referencia del dipolo en la vista de filtros (UI + endpoint GET /v2/motif_dipoles/reference/download).
