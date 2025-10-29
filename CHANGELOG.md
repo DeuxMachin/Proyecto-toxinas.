@@ -2,6 +2,20 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+
+## [2.5.1] – 2025-10-29
+### Changed
+- Visualizador de dipolos (página de filtros): al cambiar de pestaña IC50 ahora se reinicia la paginación y se muestra el conjunto filtrado desde la primera página.
+  - Con IC50: se filtra el conjunto completo, se resetea a página 1 y se mantiene el orden original de los elementos.
+  - Sin IC50: igual que arriba, aplicado a los que no tienen IC50.
+  - Todos: restaura el orden y la paginación original del backend.
+
+### Technical Details
+- Frontend (motif_dipoles.js): se conserva el arreglo en orden original, se aplica filtrado client‑side sobre el agregado y se reinicia currentPage=1 al cambiar de pestaña.
+
+---
+
+
 ## [2.5.0] - 2025-10-29
 
 Added

@@ -90,28 +90,47 @@ document.addEventListener('DOMContentLoaded', () => {
       if (typeof data.page === 'number' && data.page > 0) {
         page = data.page;
       }
-      pageLbl.textContent = `Página ${page}`;
+  pageLbl.textContent = `Página ${page}`;
 
-      lastCount = data.count || 0;
       const rawItems = data.items || [];
       // Frontend exclusion set to ensure excluded accessions are never shown
       const EXCLUDED_ACCESSIONS = new Set(["P83303","P84507","P0DL84","P84508","D2Y1X8","P0DL72","P0CH54"]);
-      // Apply exclusions and IC50 filter before preparing items
-      const items = rawItems
-        .filter(it => {
-          const acc = (it.accession_number || it.accession || '');
-          if (acc && EXCLUDED_ACCESSIONS.has(acc)) return false;
-          // IC50 filtering
-          if (ic50Filter === 'with_ic50') {
-            return Boolean(it.nav1_7_has_ic50) || it.nav1_7_ic50_value != null || (it.ic50_value != null);
-          }
-          if (ic50Filter === 'without_ic50') {
-            return !(Boolean(it.nav1_7_has_ic50) || it.nav1_7_ic50_value != null || (it.ic50_value != null));
-          }
+      let items = [];
+      if (ic50Filter !== 'all') {
+        // Cliente: obtener todos los ítems, filtrar por IC50 y paginar desde la página 1
+        const allItems = await fetchAllItemsWithCurrentParams();
+        const hasIc50 = (it) => (
+          Boolean(it.nav1_7_has_ic50) ||
+          it.nav1_7_ic50_value != null ||
+          it.nav1_7_ic50_value_nm != null ||
+          it.ai_ic50_value_nm != null ||
+          (it.ai_ic50_min_nm != null && it.ai_ic50_max_nm != null)
+        );
+        const filtered = allItems.filter(it => {
+          if (ic50Filter === 'with_ic50') return hasIc50(it);
+          if (ic50Filter === 'without_ic50') return !hasIc50(it);
           return true;
-        })
-        .map((it) => prepareItem(it));
+        });
+        lastCount = filtered.length;
+        const maxPage = Math.max(1, Math.ceil(lastCount / pageSize));
+        if (page > maxPage) page = maxPage;
+        const start = (page - 1) * pageSize;
+        const end = Math.min(lastCount, start + pageSize);
+        items = filtered.slice(start, end);
+      } else {
+        // Comportamiento base del servidor: por página
+        lastCount = data.count || 0;
+        items = rawItems
+          .filter(it => {
+            const acc = (it.accession_number || it.accession || '');
+            if (acc && EXCLUDED_ACCESSIONS.has(acc)) return false;
+            return true;
+          })
+          .map((it) => prepareItem(it));
+      }
       currentPageItems = items; // Guardar para re-renderizar
+  // Actualizar indicador de página tras posible ajuste de paginación
+  pageLbl.textContent = `Página ${page}`;
 
       // Ensure view-mode-controls exists and inject IC50 controls to the left of the view buttons
       const viewControls = document.querySelector('.view-mode-controls');
@@ -159,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
           leftGroup.querySelectorAll('.ic50-filter-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           ic50Filter = btn.dataset.mode || 'all';
+          page = 1; // resetear a la primera página al cambiar el filtro
           renderPage();
         });
 
