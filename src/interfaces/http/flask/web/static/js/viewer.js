@@ -1,4 +1,13 @@
-document.addEventListener("DOMContentLoaded", async () => {
+async function initializeViewerPage() {
+    if (initializeViewerPage.initialized) {
+        return;
+    }
+    initializeViewerPage.initialized = true;
+    
+    if (typeof molstar === "undefined") {
+        console.warn("Mol* viewer library not yet loaded");
+        return;
+    }
     //Extremos los datos de la proteina 
     const proteinData = JSON.parse(document.getElementById("protein-data").textContent);
     
@@ -75,6 +84,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 // Cargar la estructura usando el método correcto 
                 await plugin.loadStructureFromUrl(blobUrl, 'pdb');
                 
+                // Notificar al dual view manager que la estructura se cargó
+                if (window.dualViewManager) {
+                    window.dualViewManager.markStructureLoaded();
+                }
                 
                 const graphTab = document.querySelector('[data-tab="graph-view"]');
                 if (graphTab && graphTab.classList.contains('active')) {
@@ -91,6 +104,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (error) {
             alert("Error al cargar la estructura: " + error.message);
+            
+            // Notificar error de carga de la estructura
+            if (window.dualViewManager) {
+                window.dualViewManager.markStructureLoaded(); // Marcar como "cargado" aunque haya error
+            }
         }
     }
 
@@ -291,12 +309,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // Notify dual view manager
                     if (window.dualViewManager) {
                         window.dualViewManager.onLocalStructureLoaded(file.name);
+                        window.dualViewManager.markStructureLoaded();
                     }
                     
                 } catch (error) {
                     alert('Error cargando PDB: ' + error.message);
                     loadPdbBtn.innerHTML = '<i class="fas fa-upload"></i> Cargar PDB';
                     loadPdbBtn.style.background = '';
+                    
+                    // Notificar error de carga
+                    if (window.dualViewManager) {
+                        window.dualViewManager.markStructureLoaded();
+                    }
                 }
             }
         });
@@ -355,4 +379,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
     }
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeViewerPage, { once: true });
+} else {
+    initializeViewerPage();
+}

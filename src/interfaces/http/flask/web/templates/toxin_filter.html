@@ -2,68 +2,385 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Toxinas NaSpTx-like</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Filtro de toxinas Nav1.7 con búsqueda avanzada por motivos y características moleculares">
+    <title>Filtro de Toxinas | Proyecto Toxinas</title>
+    
+    <!-- Preconexiones -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
+    <!-- Font Awesome - Async con fallback -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    
+    <!-- Sistema de diseño -->
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/navbar.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/accessibility.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/components.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/filter-page.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/viewer.css')) }}">
+    
+    <!-- Critical CSS inline -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a202c; background: #f8fafc; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+        
+        /* Estilos para los botones de modo de visualización */
+        .view-mode-controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 8px;
+            margin: 1rem 1.5rem;
+        }
+        
+        .btn-view-mode {
+            background: white;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-view-mode:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e1;
+        }
+        
+        .btn-view-mode:active {
+            transform: translateY(0);
+        }
+        
+        .btn-view-mode.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-view-mode.active:hover {
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+        
+        .btn-view-mode i {
+            font-size: 16px;
+        }
+        
+        /* Animación al cambiar de modo */
+        @keyframes modeChange {
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .visualization-grid.mode-changing {
+            animation: modeChange 0.3s ease;
+        }
+
+        /* Botones IC50 (Todos / Con / Sin) */
+        .ic50-filter-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            color: #334155;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+        }
+        .ic50-filter-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .12);
+            border-color: #cbd5e1;
+        }
+        .ic50-filter-btn .icon { font-size: 1rem; opacity: .85; }
+        .ic50-filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 8px 18px rgba(102, 126, 234, .35);
+        }
+        .ic50-filter-btn:disabled { opacity: .7; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* Overlay de carga sobre el grid de dipolos */
+        #filtered-dipoles-card .card-body { position: relative; }
+        .ic50-loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(2px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+        .ic50-loading-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: 0 8px 22px rgba(0,0,0,.12);
+            color: #334155;
+            font-weight: 600;
+        }
+        .ic50-spinner {
+            width: 18px; height: 18px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: ic50spin .9s linear infinite;
+        }
+        @keyframes ic50spin { to { transform: rotate(360deg); } }
+    </style>
 </head>
-<body class="family-analysis-body">
-<div class="family-container">
-    <div class="family-header">
-        <div class="header-content">
-            <h1 class="page-title"><i class="icon-dna"></i>Motivos NaSpTx-like</h1>
-            <div>
-                <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="btn btn-back"><i class="icon-arrow-left"></i>Visualizador</a>
-                <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="btn btn-family-analysis"><i class="icon-dna"></i>Dipolos Familias</a>
+<body class="filter-page">
+    <!-- NAVBAR -->
+    <nav class="main-navbar">
+        <div class="navbar-container">
+            <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="navbar-brand">
+                <div class="navbar-logo"><i class="fas fa-dna"></i></div>
+                <span class="navbar-title">Proyecto Toxinas</span>
+            </a>
+            
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.home_page_v2') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-home"></i></span>
+                        <span>Inicio</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-microscope"></i></span>
+                        <span>Visualizador</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-flask"></i></span>
+                        <span>Familias</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('toxin_filter.toxin_filter_page') }}" class="nav-link active">
+                        <span class="nav-icon"><i class="fas fa-filter"></i></span>
+                        <span>Filtros</span>
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="navbar-actions">
+                <button class="action-btn" id="navbar-export-xlsx">
+                    <i class="fas fa-file-excel"></i>
+                    <span>Exportar</span>
+                </button>
+            </div>
+            
+            <button class="navbar-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="filter-container">
+
+        <!-- NUEVO: Dipolo de referencia + grilla paginada de filtrados -->
+        <div class="visualization-section" style="display:block;">
+            <div class="visualization-card">
+                <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                    <h2 class="section-title reference-section-title" style="margin:0;display:flex;align-items:center;gap:0.75rem;">
+                        <i class="fas fa-star"></i>
+                        <span>Dipolo de Referencia:</span>
+                        <select id="reference-selector" class="reference-selector-dropdown">
+                            <option value="WT" selected>Proteína WT</option>
+                        </select>
+                        <code id="reference-sequence" class="reference-sequence" style="margin-left:8px;font-family:monospace;font-size:0.95rem;color:#374151;">-</code>
+                    </h2>
+                    <div class="header-actions" style="display:flex;gap:0.5rem;align-items:center;">
+                        <button id="download-reference-btn" class="btn btn-secondary" title="Descargar PDB y PSF de la referencia">
+                            <i class="fas fa-download"></i>
+                            <span>Descargar</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="reference-viewer" style="width:100%;height:360px;position:relative;">
+                        <div class="loading-state">
+                            <div class="spinner" id="refSpinner"></div>
+                            <p class="loading-text">Cargando referencia...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="visualization-card" id="filtered-dipoles-card">
+                <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                    <h2 class="section-title" style="margin:0;"><i class="fas fa-bolt"></i> Dipolos de Toxinas Filtradas</h2>
+                    <div>
+                        <button id="prev-page" class="btn btn-secondary"><i class="fas fa-chevron-left"></i> Anterior</button>
+                        <span id="page-indicator" style="margin:0 8px;">Página 1</span>
+                        <button id="next-page" class="btn btn-secondary">Siguiente <i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                
+                <!-- Botones de Modo de Visualización -->
+                <div class="view-mode-controls">
+                    <button id="showDipoleBtn" class="btn-view-mode active" data-mode="dipole">
+                        <i class="fas fa-arrows-alt"></i> Vectores Dipolares
+                    </button>
+                    <button id="showDisulfideBtn" class="btn-view-mode" data-mode="disulfide">
+                        <i class="fas fa-link"></i> Puentes Disulfuro
+                    </button>
+                    <!-- 'Both' visualization removed per UI update -->
+                </div>
+                
+                <div class="card-body">
+                    <div id="filtered-grid" class="visualization-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección de Filtros pulida -->
+        <div class="filters-section">
+            <div class="filters-header">
+                <div class="filters-icon"><i class="fas fa-sliders-h"></i></div>
+                <h2 class="filters-title">Configuración de Filtros</h2>
+            </div>
+            
+            <div class="filters-grid">
+                <div class="filter-input-group">
+                    <label class="filter-label">
+                        <span class="filter-label-icon"><i class="fas fa-grip-lines-vertical"></i></span>
+                        Gap Mínimo
+                    </label>
+                    <input id="gap-min" type="number" class="filter-input" value="3" min="1">
+                </div>
+                
+                <div class="filter-input-group">
+                    <label class="filter-label">
+                        <span class="filter-label-icon"><i class="fas fa-grip-lines"></i></span>
+                        Gap Máximo
+                    </label>
+                    <input id="gap-max" type="number" class="filter-input" value="6" min="1">
+                </div>
+                
+                <div class="filter-input-group">
+                    <label class="checkbox-wrapper">
+                        <div class="custom-checkbox" id="require-pair-box">
+                            <input id="require-pair" type="checkbox" style="display: none;">
+                        </div>
+                        <span class="checkbox-label">
+                            <i class="fas fa-link"></i>
+                            Requerir Pareja Hidrofóbica
+                        </span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="filter-actions">
+                <button id="run-filter" class="btn btn-primary btn-lg search-btn">
+                    <i class="fas fa-search"></i>
+                    <span>Buscar Toxinas</span>
+                </button>
+                <button id="export-xlsx" class="btn btn-secondary btn-export" disabled>
+                    <i class="fas fa-file-excel"></i> XLSX
+                </button>
+            </div>
+            
+            <div class="filter-status" id="status-line">
+                <span class="status-icon"><i class="fas fa-info-circle"></i></span>
+                <span class="status-text">Listo para buscar</span>
+            </div>
+        </div>
+
+        <!-- Tabla de Resultados -->
+        <div class="results-table-section" id="results-card">
+            <div class="results-table-header">
+                    <div class="results-title-wrapper">
+                        <div class="results-icon"><i class="fas fa-table"></i></div>
+                    <h2 class="results-title">
+                        Tabla de Resultados 
+                        <span class="results-count" id="hit-count">0</span>
+                    </h2>
+                </div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <input id="accession-search" type="search" placeholder="Buscar por accession" aria-label="Buscar por accession" style="padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+                        <button id="accession-clear" class="btn btn-sm btn-secondary" title="Limpiar búsqueda" style="padding:6px 8px;">Limpiar</button>
+                    </div>
+                <button id="toggle-results" class="toggle-table-btn" aria-expanded="true" aria-controls="results-body">
+                    <i class="fas fa-eye"></i>
+                    <span>Mostrar/Ocultar</span>
+                </button>
+            </div>
+            
+            <div class="results-table-wrapper" id="results-body">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Score</th>
+                            <th>Gap</th>
+                            <th>X3</th>
+                            <th>Pair?</th>
+                            <th>Par Hidrofóbico</th>
+                            <th>Score Par</th>
+                            <th>Long</th>
+                            <th>Secuencia</th>
+                        </tr>
+                    </thead>
+                    <tbody id="motif-body">
+                        <!-- Resultados dinámicos -->
+                    </tbody>
+                </table>
+                <!-- Paginación de tabla -->
+                <div class="results-header" style="margin-top: var(--space-4);">
+                    <div class="pagination-controls">
+                        <button id="tbl-prev" class="pagination-btn"><i class="fas fa-chevron-left"></i> Anterior</button>
+                        <span id="tbl-page" class="page-indicator">Página 1</span>
+                        <button id="tbl-next" class="pagination-btn">Siguiente <i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="family-selection-section">
-        <div class="selection-card">
-            <div class="card-header"><h2 class="section-title">Filtros</h2></div>
-            <div class="card-body">
-                <div class="selection-controls">
-                    <div class="control-group">
-                        <label>Gap mínimo</label>
-                        <input id="gap-min" type="number" value="3" min="1">
-                    </div>
-                    <div class="control-group">
-                        <label>Gap máximo</label>
-                        <input id="gap-max" type="number" value="6" min="1">
-                    </div>
-                    <div class="control-group">
-                        <label>Pareja hidrofóbica</label>
-                        <input id="require-pair" type="checkbox">
-                    </div>
-                    <div class="action-controls">
-                        <button id="run-filter" class="btn btn-primary btn-visualize"><i class="icon-eye"></i>Buscar</button>
-                        <button id="export-xlsx" class="btn btn-secondary btn-export" disabled><i class="icon-export"></i>XLSX</button>
-                    </div>
-                </div>
-                <div class="family-info-alert" id="status-line"><i class="icon-info"></i><span>Listo.</span></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="visualization-section" style="display:block;">
-        <div class="visualization-card">
-            <div class="card-header"><h2 class="section-title">Resultados (<span id="hit-count">0</span>)</h2></div>
-            <div class="card-body">
-                <div class="peptide-list-container">
-                    <table class="properties-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th><th>Nombre</th><th>Score</th><th>Gap</th><th>X3</th><th>Pair</th><th>Long</th><th>Secuencia</th>
-                            </tr>
-                        </thead>
-                        <tbody id="motif-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- SheetJS para exportar a XLSX -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="{{ url_for('static', filename='js/toxin_filter.js') }}"></script>
+    <!-- SheetJS (lazy loaded) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+    
+    <!-- py3Dmol (lazy loaded) -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
+    
+    <!-- Plotly (lazy loaded) -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js" defer></script>
+    
+    <!-- Custom scripts con defer -->
+    <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/ui-enhancements.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/toxin_filter.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/motif_dipoles.js') }}" defer></script>
 </body>
 </html>

@@ -1,7 +1,248 @@
 # Changelog
 Todas las modificaciones significativas del proyecto se documentan aquí.  
-El historial se organiza en “versiones” retrospectivas según hitos de desarrollo.
+El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+## [2.5.2] – 2025-10-29
+### Added
+- Overlay de carga con spinner al cambiar de pestaña IC50 (“Todos / Con IC50 / Sin IC50”) y al cambiar de página en el visualizador.
+- Bloqueo temporal de navegación “Anterior / Siguiente” mientras se cargan y renderizan los dipolos.
+
+### Changed
+- Diseños de los botones “Todos / Con IC50 / Sin IC50” con estilo pill, gradiente, sombras y estado activo; ubicados a la izquierda en el mismo contenedor que “Vectores Dipolares” y “Puentes Disulfuro”.
+
+### Technical Details
+- Frontend:
+  - motif_dipoles.js: helpers getIc50Overlay/showIc50Loading/hideIc50Loading; deshabilita botones IC50 y paginación durante renderPage(); re‑habilita en finally.
+  - toxin_filter.html: estilos para .ic50-filter-btn y clases del overlay (.ic50-loading-overlay, .ic50-loading-box, .ic50-spinner).
+- Comportamiento:
+  - Cambio de pestaña IC50: muestra overlay, resetea a página 1, aplica filtro (cliente) y re-renderiza; luego oculta overlay.
+  - Cambio de página: muestra overlay “Cargando página…”, desactiva Anterior/Siguiente, renderiza y restaura controles.
+
+---
+
+## [2.5.1] – 2025-10-29
+### Changed
+- Visualizador de dipolos (página de filtros): al cambiar de pestaña IC50 ahora se reinicia la paginación y se muestra el conjunto filtrado desde la primera página.
+  - Con IC50: se filtra el conjunto completo, se resetea a página 1 y se mantiene el orden original de los elementos.
+  - Sin IC50: igual que arriba, aplicado a los que no tienen IC50.
+  - Todos: restaura el orden y la paginación original del backend.
+
+### Technical Details
+- Frontend (motif_dipoles.js): se conserva el arreglo en orden original, se aplica filtrado client‑side sobre el agregado y se reinicia currentPage=1 al cambiar de pestaña.
+
+---
+
+
+## [2.5.0] - 2025-10-29
+
+Added
+- Exclusión de accessions en toda la app (backend, visualizadores y front-end) para: P83303, P84507, P0DL84, P84508, D2Y1X8, P0DL72, P0CH54. No aparecen en tablas, visualizadores ni descargas.
+- Detección y marcado de IC50 por péptido:
+  - Desde BD (Nav1_7_InhibitorPeptides) con conversión a nM.
+  - Desde archivo AI exportado exports/filtered_accessions_nav1_7_analysis.json (ai_analysis.ic50_values), soportando valores únicos y rangos (value_min/value_max).
+  - Campos añadidos en respuestas del backend y usados por la UI: nav1_7_has_ic50, nav1_7_ic50_value_nm (y derivados AI: min/avg/max cuando existan).
+- Nueva UI de filtros IC50 en el visualizador de dipolos de toxinas filtradas:
+  - Botones “Todos / Con IC50 / Sin IC50” ubicados a la izquierda dentro del mismo contenedor de “Vectores Dipolares” y “Puentes Disulfuro”.
+- Nuevo gráfico IC50:
+  - Botón “Gráfico IC50 (puntos)” a la derecha del mismo contenedor.
+  - Gráfico de puntos (eje Y log(nM)) con todos los péptidos que tienen IC50 (AI y/o BD), mostrando barras de error cuando hay rangos (min/max) y el promedio como punto central.
+  - Respeta exclusiones y filtros activos.
+- Script de exportación y análisis IA: tools/export_filtered_accessions_nav1_7.py
+  - Toma los accession de los dipolos filtrados, busca Proteins.description por accession y ejecuta el analizador IA.
+  - Genera exports/filtered_accessions_nav1_7_analysis.json con los resultados por péptido.
+  - Logging a consola y archivo (exports/process_log.txt): “Procesando: <accession>”, presencia de descripción, y respuesta del análisis (JSON o error).
+
+Improved
+- Procesamiento IA más robusto (tools/few_shot2.py): instrucciones para forzar salida JSON y extractor tolerante a texto extra (bloques ```json```, recorte por primeras/últimas llaves).
+- Normalización a nM en backend para facilitar comparaciones y graficado.
+
+Notes
+- El gráfico usa datos AI (value / value_min–value-max) y/o BD. Cuando existe rango AI, se plotea min, max y el promedio; si solo hay un valor (AI o BD), se plotea como punto único.
+- El archivo exports/filtered_accessions_nav1_7_analysis.json se carga y cachea en el backend para marcar presencia de IC50; refresca el servidor si regeneras el JSON.
+
+---
+
+## [2.4.1] – 2025-10-25
+### Fixed
+- Integración completa de graphein_graph_adapter.py con graph_analysis2D.py para cálculo de métricas de grafo.
+- Preparación automática de atributos de nodos requeridos (carga, hidrofobicidad, estructura secundaria) para compatibilidad con análisis de toxinas.
+
+---
+### Changed
+- Rediseño completo del navbar con paleta de colores oscura profesional.
+- Eliminación de gradientes y transparencias, reemplazados por colores sólidos.
+
+### Fixed
+- Corrección de conflictos de CSS inline en páginas HTML que sobrescribían estilos del navbar.
+- Agregado del enlace "Inicio" al navbar en la vista de filtros para navegación consistente.
+
+### Deleted
+- Se eliminio graph_analysis3D.py debido a que era simplemente un PLOTLY que reidreccionaba a otra pagina
+---
+
+## [2.4.0] – 2025-10-24
+### Added
+- Botón de descarga para la referencia del dipolo en la vista de filtros (UI + endpoint GET /v2/motif_dipoles/reference/download).
+- Botón de descarga por toxina en cada visualizador (UI + endpoint GET /v2/motif_dipoles/item/download?accession=...).
+- Panel de búsqueda por accession en la tabla de resultados:
+  - Input de búsqueda y botón "Limpiar" en la cabecera de la tabla que permiten filtrar las filas cargadas por accession (búsqueda por substring, case-insensitive).
+  - El filtrado es client-side sobre los resultados ya descargados; la paginación y el contador de hits se actualizan según el conjunto filtrado.
+
+### Changed
+- Se reemplazaron las métricas en la esquina superior derecha de cada tarjeta por el botón de descarga ubicado en el header (nombre + accession), evitando solapamiento con el canvas 3D.
+- Frontend: listeners de descarga ligados tras el renderizado de tarjetas para soportar paginación/refresh y mejorar feedback (spinner/errores).
+- Header de los visualizadores de toxinas: el accession pasa a ser un enlace a UniProt (https://www.uniprot.org/uniprotkb/{accession}/entry), la secuencia de la toxina se muestra directamente bajo el nombre, y nombre/accession/secuencia usan un tamaño de fuente uniforme y aumentado; el botón de descarga se ubica en el header reemplazando las métricas previas.
+- En el panel de referencia, la secuencia de la referencia se muestra a la derecha del selector.
+
+### Removed
+- Eliminado el modo de visualización "Ambos"; solo quedan los modos "Vectores Dipolares" y "Puentes S–S".
+
+### Fixed
+- Corrección de la visualización de puentes disulfuro: detección basada en átomos SG de residuos CYS (umbral de distancia) y renderizado adecuado (cilindros) en el viewer.
+- Problemas de interacción resueltos (botones clickeables, z-index y registro de handlers).
+
+### Notes
+- Las descargas se generan en memoria (ZIP) y requieren acceso a los PDB/PSF correspondientes en disco o en la fuente de datos configurada.
+- Si se requiere, se puede restaurar la visualización de métricas en otro lugar (tooltip/leyenda) sin afectar la descarga.
+
+---
+
+## [2.2.1] – 2025-10-20
+### Added
+- **Dockerización local completa del proyecto**:
+  - Se creó un `Dockerfile` de producción que incluye la base de datos, archivos PDB, PSF y carpeta filtered, permitiendo levantar la app Flask y acceder a la UI y API desde el navegador.
+  - Se añadió `.dockerignore` para acelerar los builds y reducir el tamaño de la imagen.
+  - Se agregó `docker-compose.yml` con dos servicios:
+    - `app`: modo producción con gunicorn.
+    - `dev`: modo desarrollo con Flask y autoreload, permitiendo edición en caliente y visualización completa de la página.
+  - Se configuraron variables de entorno y healthcheck para facilitar el despliegue y diagnóstico.
+
+### Notes
+- Por ahora la dockerización es solo local; no se ha publicado la imagen en ningún registro ni automatizado el despliegue en servidores externos.
+
+---
+
+## [2.2.0] – 2025-10-20
+### Added
+- **Optimización integral de rendimiento Lighthouse**: Sistema completo de carga diferida y cacheado:
+  - Font Awesome con `preload + async onload` para evitar render-blocking resources.
+  - Mol* CSS con trick `media="print" onload` para carga no-bloqueante.
+  - HTTP cache headers: 1 año para assets estáticos, 1 hora para HTML, no-cache para API.
+- **Infraestructura de minificación**: Script `tools/minify_assets.py` para minificar automáticamente CSS/JS:
+  - Helper `asset_path()` en Flask que prefiere `.min` cuando `USE_MINIFIED_ASSETS=1`.
+  - Registered como Jinja global para templates (viewer.html, dipole_families.html, etc).
+  - Reporte automático de ahorros de tamaño por archivo.
+
+
+---
+
+## [2.1.0] – 2025-10-16
+### Added
+- Selector de referencia en la vista de dipolos: opción fija **WT hwt4_Hh2a** seguida de toxinas de la tabla `Nav1_7_InhibitorPeptides` ordenadas por IC50 normalizado; al cambiar la referencia se recalculan dipolo y orden del listado.
+- Visualización multi-modo para los hits filtrados (Vectores, Puentes S–S, Ambos) con overlays que exhiben magnitud, ángulos y ΔX/ΔY/ΔZ frente a la referencia.
+- Métricas de orientación completas: cálculo y exposición de Δori, proyecciones vectoriales normalizadas y diferencias por eje tanto en tarjetas como en overlays.
+- Extensión de `tools/generate_filtered_psfs.py` con soporte `--pdb-file`, `--output-dir`, `--chain` y `--disulfide-cutoff`; los artefactos del WT se generan en `pdbs/WT/generated/`.
+
+### Changed
+- El backend ordena los resultados filtrados por el “orientation_score” (ángulo entre vectores normalizados) y usa ΔZ solo como métrica secundaria; la paginación opera sobre la lista ya ordenada.
+- El layout del panel de visualización incluye la lista desplegable junto al título “Dipolo de referencia” y refresca viewers al cambiar la selección sin recargar la página.
+- Cacheo de referencia centralizado: la app reutiliza PDB/PSF y vectores normalizados cuando es la WT y solo recalcula al seleccionar otra toxina.
+
+### Technical Details
+- Helper `_compute_orientation_metrics` consolida normalización, proyección por eje y diferencias absolutas; la respuesta JSON expone `orientation_score_deg`, `delta_axes` y metadatos de la referencia activa.
+- `motif_dipoles.js` incorpora utilidades `normalizeVector`, `computeAngle`, `computeAxisDiffs` y renderizado agnóstico al modo, compartiendo leyendas y tooltips entre viewers.
+- `motif_dipoles_controller.py` resuelve la referencia por código, normaliza IC50 a nM (`_convert_ic50_to_nm`) y mantiene caches en memoria para minimizar cálculos repetidos.
+
+---
+
+## [2.0.0] – 2025-10-09
+### Added
+- Rediseño completo del frontend con sistema de diseño profesional unificado:
+  - Sistema de variables CSS centralizadas (design-system.css) con escalas de color, espaciado, tipografía, sombras y transiciones.
+  - Componentes reutilizables (buttons, cards, forms, tables, alerts, badges) con diseño consistente.
+  - Navbar unificada responsive con toggle móvil y navegación coherente entre páginas.
+  - Iconografía con Font Awesome 6.4.0 en lugar de emojis para apariencia profesional.
+- Separación de contenedores en vista del visualizador:
+  - "Análisis Detallado del Grafo" y "Exportar Datos Completos" como secciones independientes con toggles individuales.
+  - Botones de toggle lado a lado para acceso directo sin necesidad de scroll extenso.
+  - Sistema de exclusión mutua: solo una sección visible a la vez para UI limpia.
+- Auto-scroll en visualización de familias:
+  - Scroll automático y suave hacia la sección de visualización al seleccionar "Visualizar los dipolos de las familias".
+  - Offset configurable (100px) para mejor posicionamiento visual.
+- Mejoras en página de filtros de toxinas:
+  - Checkbox personalizado funcional con animaciones checkPop y hover effects.
+  - Click unificado: funciona tanto en el cuadrado del checkbox como en el texto del label.
+  - Estados visuales claros con transiciones suaves y feedback inmediato.
+  - Mejoras en botones de exportación y toggle de tabla con gradientes y micro-interacciones.
+
+### Changed
+- Animaciones de botones mejoradas:
+  - Reemplazo de expansión circular por sliding horizontal para llenar botones completamente.
+  - Hover effects consistentes en todos los botones con translateY y box-shadow.
+  - Estados disabled con opacidad apropiada y cursor not-allowed.
+- Estructura HTML del apartado "Exportar Datos Completos":
+  - Uso de componentes card con card-header y card-body para consistencia visual.
+  - Selectores y controles con clases control-group y control-label estandarizadas.
+  - Tooltips con iconos Font Awesome y posicionamiento absoluto mejorado.
+  - Secciones de familia y comparación WT con diseño profesional y spacing uniforme.
+- Sistema de paginación de tabla en filtros:
+  - Paginación client-side (10 filas por página) sin cambios en backend.
+  - Controles de navegación con estados disabled apropiados.
+
+### Fixed
+- Funcionalidad del checkbox de pareja hidrofóbica en página de filtros:
+  - Eliminación de atributo for conflictivo en label HTML.
+  - Event listeners unificados para evitar doble-triggering.
+  - Sincronización correcta entre estado visual (CSS) y estado lógico (JavaScript).
+  - Inicialización adecuada del estado visual en page load.
+  - Restauración de estructura HTML requerida por JavaScript (.button-text span).
+  - Preservación de IDs y clases necesarias para event listeners.
+  - Compatibilidad mantenida con export_feedback.js y graph_viewer.js.
+- Problemas de UI/UX y redundancias:
+  - Eliminación de botones duplicados en análisis del visualizador.
+  - Remoción de símbolos extraños (?) en labels de toggle.
+  - Corrección de posicionamiento de botones (dipolo aparecía sobre navbar).
+  - Limpieza de console.log innecesarios en producción.
+
+### Removed
+- Emojis en interfaz de usuario reemplazados por Font Awesome icons.
+- Código duplicado de manejo de checkbox en toxin_filter.js.
+
+---
+
+## [1.8.0] – 2025-10-03
+### Added
+- Generación masiva de PSF/PDB para péptidos filtrados:
+  - Nuevo script tools/generate_filtered_psfs.py que crea outputs en tools/filtered/ nombrados por accession_number.
+  - Ejecución de VMD por subproceso, captura de logs por péptido en tools/filtered/logs y reintento automático con tail del log.
+- Mejoras en psfgen (resources/psf_gen.tcl):
+  - Detección de DISU robusta (medida de distancias SG-SG con función propia), y patch DISU forzado al segmento único.
+  - Sanitización previa del PDB (elimina NH2, PCA, ACE, NME), renumeración de resid y segid uniforme, alias de residuos frecuentes (HIS→HSE/HSD, MSE→MET, SEC/CYX→CYS).
+  - Carga única de topologías por sesión (evita duplicados).
+- Integración Flask para comparación de dipolos:
+  - Nuevo blueprint v2 con endpoints:
+    - GET /v2/motif_dipoles/reference: retorna PDB y dipolo de la referencia μ-TRTX-Cg4a.
+    - GET /v2/motif_dipoles/page: pagina toxinas filtradas y calcula/retorna su dipolo desde tools/filtered.
+- UI de comparación integrada en la página de filtrado:
+  - Sección superior fija con el dipolo de la referencia μ-TRTX-Cg4a.
+  - Grid paginado de toxinas filtradas (6 por página, 3 por fila) con visualizador 3D.
+  - Visualización con ejes XYZ, flecha de dipolo y leyenda (magnitud en Debye y ángulo respecto a Z).
+  - Nuevo JS estático motif_dipoles.js y estilos de grid/alturas para py3Dmol.
+
+### Changed
+- Panel de filtros movido debajo de la nueva sección de visualización.
+
+
+---
+
+## [1.7.2] – 2025-10-02
+### Added
+- Cálculo y exposición del par hidrofóbico óptimo previo a la S posterior al 5.º C (campos: hydrophobic_pair, hydrophobic_pair_score, hydrophobic_pair_start, iHP1, iHP2).
+- Nuevas columnas en la tabla de filtrado: Par Hidrofóbico y Score Par (incluye resaltado visual en la secuencia).
+- Botón para colapsar/expandir la lista de resultados (mejorando la usabilidad en listas largas).
+
+---
+ 
 ## [1.7.1] – 2025-09-29
 ### Added
 - Script maestro run_full_pipeline.py que ejecuta de forma interactiva y secuencial todo el pipeline (UniProt → Proteins → Peptides → Nav1.7 curados → blobs PDB/PSF).

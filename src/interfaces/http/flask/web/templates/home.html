@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Proyecto Toxinas - Análisis computacional de toxinas Nav1.7 con visualización 3D interactiva y análisis de grafos moleculares. Herramienta para trabajo de título en bioinformática.">
+    <meta name="keywords" content="toxinas, Nav1.7, análisis molecular, bioinformática, visualización 3D, grafos moleculares">
+    <meta name="theme-color" content="#3B82F6">
+    <meta name="author" content="Proyecto Toxinas">
+
+    <title>Proyecto Toxinas </title>
+
+    <!-- Preconexión a recursos externos críticos -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+
+    <!-- Estilos principales -->
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/navbar.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/accessibility.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/home-page.css')) }}">
+
+    <!-- Font Awesome con preload y async -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+</head>
+<body class="home-page">
+    <!-- Skip to main content para accesibilidad -->
+    <a href="#main-content" class="skip-to-main sr-only">Saltar al contenido principal</a>
+
+    <!-- NAVBAR -->
+    <nav class="main-navbar home-navbar" role="navigation" aria-label="Navegación principal">
+        <div class="navbar-container">
+            <a href="{{ url_for('pages_v2.home_page_v2') }}" class="navbar-brand" aria-label="Proyecto Toxinas - Inicio">
+                <div class="navbar-logo" aria-hidden="true"><i class="fas fa-dna"></i></div>
+                <span class="navbar-title">Proyecto Toxinas</span>
+            </a>
+
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.home_page_v2') }}" class="nav-link active" aria-current="page">
+                        <span class="nav-icon" aria-hidden="true"><i class="fas fa-home"></i></span>
+                        <span>Inicio</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="nav-link">
+                        <span class="nav-icon" aria-hidden="true"><i class="fas fa-microscope"></i></span>
+                        <span>Visualizador</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="nav-link">
+                        <span class="nav-icon" aria-hidden="true"><i class="fas fa-flask"></i></span>
+                        <span>Familias</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('toxin_filter.toxin_filter_page') }}" class="nav-link">
+                        <span class="nav-icon" aria-hidden="true"><i class="fas fa-filter"></i></span>
+                        <span>Filtros</span>
+                    </a>
+                </li>
+            </ul>
+
+            <button class="navbar-toggle" aria-label="Abrir menú de navegación" aria-expanded="false">
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <main id="main-content">
+        <section class="hero-section">
+            <div class="hero-background">
+                <div class="hero-shapes">
+                    <div class="shape shape-1"></div>
+                    <div class="shape shape-2"></div>
+                    <div class="shape shape-3"></div>
+                    <div class="shape shape-4"></div>
+                </div>
+                <div class="hero-overlay"></div>
+            </div>
+
+            <div class="hero-container">
+                <div class="hero-content-wrapper">
+                    <div class="hero-content">
+                        <div class="hero-badge">
+                            <i class="fas fa-atom"></i>
+                            Plataforma de Bioinformática Estructural
+                        </div>
+
+                        <h1 class="hero-title">
+                            Explora y Analiza<br>
+                            <span class="highlight">Toxinas referentes</span><br>
+                            del canal de sodio Nav1.7
+                        </h1>
+
+                        <p class="hero-description">
+                            NombreProyecto combina visualización 3D y análisis topológico avanzado.
+                            Extrae estructuras PDB, construye grafos de interacción y visualiza toxinas y proteínas
+                            en un entorno profesional e intuitivo.
+                        </p>
+
+                        <div class="hero-actions">
+                            <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="btn btn-primary">
+                                <i class="fas fa-atom"></i>
+                                Iniciar Exploración
+                            </a>
+                            <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="btn btn-outline">
+                                <i class="fas fa-git-compare"></i>
+                                Comparar Estructuras
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="hero-visual">
+                        <div class="visual-card">
+                            <div class="card-header">
+                                <i class="fas fa-microscope"></i>
+                                <span>Visualización 3D</span>
+                            </div>
+                            <div class="card-content">
+                                <div class="molecule-image-container">
+                                    <img src="{{ url_for('static', filename='images/toxina.png') }}"
+                                         alt="Visualización 3D de estructura proteica - Toxina Nav1.7"
+                                         class="molecule-image"
+                                         width="320"
+                                         height="240">
+                                    <div class="image-overlay">
+                                        <div class="image-badge">
+                                            <i class="fas fa-atom"></i>
+                                            <span>Mol* Viewer</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STATS SECTION -->
+        <section class="stats-section">
+            <div class="container">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">30+</div>
+                        <div class="stat-label">Toxinas Analizadas</div>
+                        <p class="stat-description">Base de datos de toxinas y variantes de Nav1.7</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Código Abierto</div>
+                        <p class="stat-description">Desarrollado con enfoque en bioinformática y análisis estructural molecular.</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">5+</div>
+                        <div class="stat-label">Métricas de Análisis</div>
+                        <p class="stat-description">Centralidad, clustering y análisis topológico</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">3D</div>
+                        <div class="stat-label">Visualización Interactiva</div>
+                        <p class="stat-description">Con Mol* y análisis de vectores dipolares</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FEATURES GRID -->
+        <section class="features-section">
+            <div class="container">
+                <div class="features-header">
+                    <h2>Capacidades de la Plataforma</h2>
+                    <p>Herramientas profesionales para investigación estructural</p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-box"></i>
+                        </div>
+                        <h3>Visualización 3D Interactiva</h3>
+                        <p>Explora estructuras moleculares con renderizado 3D de alta calidad usando Mol*. Múltiples modos de representación: cartoon, backbone, átomos y superficie.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-share-nodes"></i>
+                        </div>
+                        <h3>Análisis de Grafos</h3>
+                        <p>Análisis topológico completo con Graphein: centralidades, puentes disulfuro, clusters y métricas de conectividad de residuos.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-git-compare"></i>
+                        </div>
+                        <h3>Comparación Estructural</h3>
+                        <p>Compara múltiples estructuras proteicas lado a lado. Identifica diferencias conformacionales y regiones conservadas.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <h3>Integración PDB</h3>
+                        <p>Carga directa desde Protein Data Bank. Acceso a miles de estructuras cristalográficas y de NMR validadas.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h3>Procesamiento Rápido</h3>
+                        <p>Pipeline optimizado para extracción, construcción de grafos y renderizado. Resultados en segundos.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-atom"></i>
+                        </div>
+                        <h3>Análisis de Toxinas</h3>
+                        <p>Especializado en el estudio de toxinas y proteínas bioactivas. Identifica sitios activos y regiones funcionales.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WORKFLOW SECTION -->
+        <section class="workflow-section">
+            <div class="container">
+                <div class="workflow-header">
+                    <h2>Flujo de Trabajo</h2>
+                    <p>Desde la selección hasta el análisis completo en 4 pasos</p>
+                </div>
+
+                <div class="workflow-steps">
+                    <div class="workflow-step">
+                        <div class="step-number">1</div>
+                        <h3>Seleccionar</h3>
+                        <p>Elige una proteína de la base de datos de toxinas Nav1.7</p>
+                    </div>
+
+                  
+
+                    <div class="workflow-step">
+                        <div class="step-number">2</div>
+                        <h3>Cargar</h3>
+                        <p>Visualiza la estructura 3D interactiva con Mol*</p>
+                    </div>
+
+                
+
+                    <div class="workflow-step">
+                        <div class="step-number">3</div>
+                        <h3>Analizar</h3>
+                        <p>Calcula métricas de centralidad y topología</p>
+                    </div>
+
+                    
+
+                    <div class="workflow-step">
+                        <div class="step-number">4</div>
+                        <h3>Exportar</h3>
+                        <p>Descarga resultados en XLSX para análisis posterior</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        
+    </main>
+
+    <!-- Navbar toggle script (crítico inline optimizado) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggle = document.querySelector('.navbar-toggle');
+            const nav = document.querySelector('.navbar-nav');
+            if (toggle && nav) {
+                toggle.addEventListener('click', function() {
+                    const expanded = this.getAttribute('aria-expanded') === 'true';
+                    this.setAttribute('aria-expanded', !expanded);
+                    nav.classList.toggle('active');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

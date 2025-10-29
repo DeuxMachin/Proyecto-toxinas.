@@ -3,33 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Análisis de Dipolo por Familia</title>
-    <!-- ✅ Solo CSS del proyecto -->
-    <link href="{{ url_for('static', filename='css/viewer.css') }}" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/dipole_families.css') }}" rel="stylesheet">
-    <!-- ✅ Solo py3Dmol externo necesario -->
-    <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+    <meta name="description" content="Análisis de familias de toxinas Nav1.7 con vectores dipolares y comparación estructural">
+    <title>Análisis de Familias | Proyecto Toxinas</title>
+    
+    <!-- Preconexiones -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
+    <!-- Font Awesome - Async con fallback -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    
+    <!-- Critical CSS inline -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a202c; background: #f8fafc; }
+        .page-header { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 2rem 1rem; border-bottom: 1px solid #e2e8f0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
+    </style>
+    
+    <!-- Sistema de diseño -->
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/navbar.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/accessibility.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/components.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/families-page.css')) }}">
 </head>
-<body class="family-analysis-body">
-    <div class="family-container">
-        <!-- Header con navegación -->
-        <div class="family-header">
-            <div class="header-content">
-                <h1 class="page-title">
-                    <i class="icon-dna"></i>Análisis de Dipolo por Familia
-                </h1>
-                <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="btn btn-back">
-                    <i class="icon-arrow-left"></i>Volver al Visualizador
-                </a>
+<body class="families-page">
+    <!-- NAVBAR -->
+    <nav class="main-navbar">
+        <div class="navbar-container">
+            <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="navbar-brand">
+                <div class="navbar-logo"><i class="fas fa-dna"></i></div>
+                <span class="navbar-title">Proyecto Toxinas</span>
+            </a>
+            
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.home_page_v2') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-home"></i></span>
+                        <span>Inicio</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-microscope"></i></span>
+                        <span>Visualizador</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="nav-link active">
+                        <span class="nav-icon"><i class="fas fa-flask"></i></span>
+                        <span>Familias</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('toxin_filter.toxin_filter_page') }}" class="nav-link">
+                        <span class="nav-icon"><i class="fas fa-filter"></i></span>
+                        <span>Filtros</span>
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="navbar-actions">
+                <button class="action-btn" id="export-family-data">
+                    <i class="fas fa-download"></i>
+                    <span>Exportar</span>
+                </button>
             </div>
+            
+            <button class="navbar-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
         </div>
+    </nav>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="families-container">
 
         <!-- Selector de familia -->
         <div class="family-selection-section">
             <div class="selection-card">
                 <div class="card-header">
                     <h2 class="section-title">
-                        <i class="icon-family"></i>Selección de Familia de Toxinas
+                        <i class="fas fa-sitemap"></i> Selección de Familia de Toxinas
                     </h2>
                 </div>
                 <div class="card-body">
@@ -43,14 +101,14 @@
                         </div>
                         <div class="action-controls">
                             <button type="button" class="btn btn-primary btn-visualize" id="visualizeFamilyBtn" disabled>
-                                <i class="icon-eye"></i>Visualizar Dipolos de la Familia
+                                <i class="fas fa-eye"></i> Visualizar Dipolos de la Familia
                             </button>
                         </div>
                     </div>
                     
                     <!-- Info de la familia seleccionada -->
                     <div id="familyInfo" class="family-info-alert" style="display: none;">
-                        <i class="icon-info"></i>
+                        <i class="fas fa-info-circle"></i>
                         <span id="familyInfoText">Información de la familia...</span>
                     </div>
                     
@@ -68,12 +126,12 @@
                 <div class="card-header">
                     <div class="header-left">
                         <h2 class="section-title">
-                            <i class="icon-chart"></i>Visualización de Dipolos - <span id="selectedFamilyTitle"></span>
+                            <i class="fas fa-chart-bar"></i> Visualización de Dipolos - <span id="selectedFamilyTitle"></span>
                         </h2>
                     </div>
                     <div class="header-actions">
                         <button type="button" class="btn btn-secondary btn-export" id="exportDataBtn">
-                            <i class="icon-export"></i>Exportar Datos
+                            <i class="fas fa-file-export"></i> Exportar Datos
                         </button>
                     </div>
                 </div>
@@ -99,7 +157,7 @@
                 <div class="stat-card">
                     <div class="card-header">
                         <h3 class="card-title">
-                            <i class="icon-calculator"></i>Estadísticas de Magnitud
+                            <i class="fas fa-calculator"></i> Estadísticas de Magnitud
                         </h3>
                     </div>
                     <div class="card-body">
@@ -111,7 +169,7 @@
                 <div class="stat-card">
                     <div class="card-header">
                         <h3 class="card-title">
-                            <i class="icon-compass"></i>Análisis de Orientación
+                            <i class="fas fa-compass"></i> Análisis de Orientación
                         </h3>
                     </div>
                     <div class="card-body">
@@ -124,7 +182,15 @@
         </div>
     </div>
 
-    <!-- JS uses only /v2 endpoints: /v2/families, /v2/family-peptides/<name>, /v2/family-dipoles/<name> -->
-    <script src="{{ url_for('static', filename='js/dipole_family_analysis.js') }}"></script>
+    <!-- py3Dmol (lazy loaded) -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
+    
+    <!-- Plotly (lazy loaded) -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js" defer></script>
+    
+    <!-- Custom scripts con defer -->
+    <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/ui-enhancements.js')) }}" defer></script>
+    <script src="{{ url_for('static', filename=asset_path('js/dipole_family_analysis.js')) }}" defer></script>
 </body>
 </html>

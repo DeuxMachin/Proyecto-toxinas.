@@ -15,7 +15,6 @@ class MolstarProteinAnalyzer {
             this.lastStructureData = structureData; // Guardar para uso posterior
             return await this.performAnalysis(structureData);
         } catch (error) {
-            console.error("Error analyzing structure:", error);
             return null;
         }
     }
@@ -30,18 +29,42 @@ class MolstarProteinAnalyzer {
         };
 
         try {
+            // Verificar que el plugin y la jerarquía existen
+            if (!this.plugin ||
+                !this.plugin.managers ||
+                !this.plugin.managers.structure ||
+                !this.plugin.managers.structure.hierarchy ||
+                !this.plugin.managers.structure.hierarchy.selection ||
+                !Array.isArray(this.plugin.managers.structure.hierarchy.selection.structures)) {
+                return {
+                    residues: [],
+                    atoms: [],
+                    bonds: [],
+                    metadata: { error: "Plugin no inicializado o sin jerarquía de estructura" }
+                };
+            }
+
             const structures = this.plugin.managers.structure.hierarchy.selection.structures;
-            
-            if (structures.length === 0) {
-                throw new Error("No hay estructuras cargadas");
+            if (!structures || structures.length === 0) {
+                return {
+                    residues: [],
+                    atoms: [],
+                    bonds: [],
+                    metadata: { error: "No hay estructuras cargadas" }
+                };
             }
 
-            const structure = structures[0].cell.obj?.data;
+            const structure = structures[0]?.cell?.obj?.data;
             if (!structure) {
-                throw new Error("No se puede acceder a los datos de estructura");
+                return {
+                    residues: [],
+                    atoms: [],
+                    bonds: [],
+                    metadata: { error: "No se puede acceder a datos de estructura" }
+                };
             }
 
-            // Extraemos la informacion basica de la estrucrua
+            // Extraemos la información básica de la estructura
             data.metadata = {
                 atomCount: structure.atomicHierarchy.atoms._rowCount,
                 residueCount: structure.atomicHierarchy.residues._rowCount,
@@ -50,14 +73,20 @@ class MolstarProteinAnalyzer {
 
             // Extraer residuos
             data.residues = this.extractResidues(structure);
-            
+
             // Extraer átomos CA para análisis de grafo
             data.atoms = this.extractAtoms(structure);
-            
+
             return data;
 
         } catch (error) {
-            throw error;
+            // Retornar objeto vacío en caso de error
+            return {
+                residues: [],
+                atoms: [],
+                bonds: [],
+                metadata: { error: error.message }
+            };
         }
     }
 
@@ -162,6 +191,10 @@ class MolstarProteinAnalyzer {
      */
     async performAnalysis(structureData) {
         try {
+            // Verificar que hay datos válidos
+            if (!structureData.residues || structureData.residues.length === 0) {
+                return this.createEmptyAnalysis();
+            }
             
             const modelInfo = this.plugin.managers.structure.hierarchy.current.structures[0]?.cell?.obj?.data?.model?.modelNum || 1;
             const pdbId = this.plugin.managers.structure.hierarchy.current.structures[0]?.transform?.cell?.obj?.data?.id || 'Proteína_Actual';
@@ -217,42 +250,52 @@ class MolstarProteinAnalyzer {
     
             return analysis;
         } catch (error) {
-            // Crear un objeto básico con datos dummy para mostrar algo en la UI
-            return {
-                toxin: 'Proteína actual',
-                graph_properties: {
-                    nodes: structureData?.residues?.length || 0,
-                    edges: 0,
-                    disulfide_bridges: 0,
-                    density: 0,
-                    clustering_coefficient_avg: 0
-                },
-                summary_statistics: {
-                    degree_centrality: {min: 0, max: 0, mean: 0, top_residues: '-'},
-                    betweenness_centrality: {min: 0, max: 0, mean: 0, top_residues: '-'},
-                    closeness_centrality: {min: 0, max: 0, mean: 0, top_residues: '-'},
-                    clustering_coefficient: {min: 0, max: 0, mean: 0, top_residues: '-'}
-                },
-                top_5_residues: {
-                    degree_centrality: [],
-                    betweenness_centrality: [],
-                    closeness_centrality: [],
-                    clustering_coefficient: []
-                },
-                key_residues: {
-                    degree_centrality: '-',
-                    betweenness_centrality: '-',
-                    closeness_centrality: '-',
-                    clustering_coefficient: '-'
-                }
-            };
+            return this.createEmptyAnalysis();
         }
+    }
+
+    /**
+     * Crea un análisis vacío para casos de error
+     */
+    createEmptyAnalysis() {
+        return {
+            toxin: 'Proteína actual',
+            graph_properties: {
+                nodes: 0,
+                edges: 0,
+                disulfide_bridges: 0,
+                density: 0,
+                clustering_coefficient_avg: 0
+            },
+            summary_statistics: {
+                degree_centrality: {min: 0, max: 0, mean: 0, top_residues: '-'},
+                betweenness_centrality: {min: 0, max: 0, mean: 0, top_residues: '-'},
+                closeness_centrality: {min: 0, max: 0, mean: 0, top_residues: '-'},
+                clustering_coefficient: {min: 0, max: 0, mean: 0, top_residues: '-'}
+            },
+            top_5_residues: {
+                degree_centrality: [],
+                betweenness_centrality: [],
+                closeness_centrality: [],
+                clustering_coefficient: []
+            },
+            key_residues: {
+                degree_centrality: '-',
+                betweenness_centrality: '-',
+                closeness_centrality: '-',
+                clustering_coefficient: '-'
+            }
+        };
     }
 
     /**
      * Cuenta puentes disulfuro buscando pares de cisteínas cercanas
      */
     countDisulfideBridges(structureData) {
+        if (!structureData.residues || !Array.isArray(structureData.residues) || structureData.residues.length === 0) {
+            return 0;
+        }
+        
         let bridges = 0;
         const cysteines = structureData.residues.filter(r => r.name === 'CYS');
         
@@ -276,10 +319,15 @@ class MolstarProteinAnalyzer {
     calculateDistances(atoms) {
         const distances = {};
         
-        for (let i = 0; i < atoms.length; i++) {
+        // Verificar que atoms es un objeto válido con array
+        if (!atoms || !atoms.atoms || !Array.isArray(atoms.atoms) || atoms.atoms.length === 0) {
+            return distances;
+        }
+        
+        for (let i = 0; i < atoms.atoms.length; i++) {
             distances[i] = {};
-            for (let j = i + 1; j < atoms.length; j++) {
-                const dist = this.calculateDistance(atoms[i].coordinates, atoms[j].coordinates);
+            for (let j = i + 1; j < atoms.atoms.length; j++) {
+                const dist = this.calculateDistance(atoms.atoms[i].coordinates, atoms.atoms[j].coordinates);
                 distances[i][j] = dist;
                 distances[j] = distances[j] || {};
                 distances[j][i] = dist;
@@ -323,6 +371,15 @@ class MolstarProteinAnalyzer {
      * Calcula centralidades básicas
      */
     calculateCentralities(residues, connections) {
+        if (!residues || !Array.isArray(residues) || residues.length === 0) {
+            return {
+                degree: {},
+                betweenness: {},
+                closeness: {},
+                clustering: {}
+            };
+        }
+        
         const n = residues.length;
         const degree = new Array(n).fill(0);
         const betweenness = new Array(n).fill(0);

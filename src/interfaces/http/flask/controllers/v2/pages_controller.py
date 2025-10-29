@@ -14,6 +14,12 @@ def configure_pages_dependencies(*, toxin_repo=None):
 
 
 @pages_v2.get("/")
+def home_page_v2():
+    # Render home landing page as project root
+    return render_template("home.html")
+
+
+@pages_v2.get("/viewer")
 def viewer_page_v2():
     # Fetch selectable peptide lists for initial render; fall back to empty if DI missing
     toxinas = []

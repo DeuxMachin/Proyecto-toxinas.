@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 import os, importlib
 import os
 import importlib
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 def create_app_v2() -> Flask:
@@ -17,6 +18,24 @@ def create_app_v2() -> Flask:
     # Feature flags
     env_flag = os.environ.get('LEGACY_ALIASES_ENABLED', '0').strip().lower()
     app.config['LEGACY_ALIASES_ENABLED'] = env_flag not in ('0', 'false', 'no')
+    app.config['USE_MINIFIED_ASSETS'] = os.environ.get('USE_MINIFIED_ASSETS', '0').strip().lower() in ('1', 'true', 'yes')
+
+    def asset_path(relative_path: str) -> str:
+        """Resolve asset path, preferring minified versions when enabled."""
+        normalized = relative_path.replace('\\', '/').lstrip('/')
+        if app.config['USE_MINIFIED_ASSETS']:
+            base, ext = os.path.splitext(normalized)
+            min_candidate = f"{base}.min{ext}"
+            min_abs_path = os.path.join(app.static_folder, *min_candidate.split('/'))
+            if os.path.exists(min_abs_path):
+                return min_candidate
+        return normalized
+
+    app.jinja_env.globals['asset_path'] = asset_path
+
+    # Trust proxy headers from Nginx Proxy Manager so scheme/host/port are correct behind SSL
+    # Forwarded headers: X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Port, X-Forwarded-Prefix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     # --- Composition Root: instantiate infrastructure and use cases (simple manual DI) ---
     # Config
@@ -30,7 +49,8 @@ def create_app_v2() -> Flask:
             db_path = "database/toxins.db"
             pdb_dir = "pdbs"
             psf_dir = "psfs"
-            wt_reference_path = os.path.join("pdbs", "WT", "hwt4_Hh2a_WT.pdb")
+            wt_reference_path = os.path.join("pdbs", "WT", "generated", "hwt4_Hh2a_WT.pdb")
+            wt_reference_psf_path = os.path.join("pdbs", "WT", "generated", "hwt4_Hh2a_WT.psf")
         cfg = _CF()
     # Expose config for debugging/diagnostics
     try:
@@ -39,6 +59,7 @@ def create_app_v2() -> Flask:
             'pdb_dir': getattr(cfg, 'pdb_dir', None),
             'psf_dir': getattr(cfg, 'psf_dir', None),
             'wt_reference_path': getattr(cfg, 'wt_reference_path', None),
+            'wt_reference_psf_path': getattr(cfg, 'wt_reference_psf_path', None),
         }
     except Exception:
         pass
@@ -144,6 +165,19 @@ def create_app_v2() -> Flask:
         app.register_blueprint(toxin_filter_v2)
     except Exception as e:
         app.logger.warning(f"v2 toxin_filter blueprint not registered: {e}")
+    # Motif dipoles (reference + paginated filtered dipoles)
+    try:
+        from src.interfaces.http.flask.controllers.v2.motif_dipoles_controller import motif_dipoles_v2, configure_motif_dipoles_dependencies
+        configure_motif_dipoles_dependencies(
+            db_path=getattr(cfg, 'db_path', 'database/toxins.db'),
+            filtered_dir=os.path.join(os.getcwd(), 'pdbs', 'filtered_psfs'),
+            dipole_adapter=dipole_service,
+            reference_pdb=getattr(cfg, 'wt_reference_path', None),
+            reference_psf=getattr(cfg, 'wt_reference_psf_path', None),
+        )
+        app.register_blueprint(motif_dipoles_v2)
+    except Exception as e:
+        app.logger.warning(f"v2 motif_dipoles blueprint not registered: {e}")
     try:
         from src.interfaces.http.flask.controllers.graphs_controller import graphs_v2, configure_graphs_dependencies
         configure_graphs_dependencies(
@@ -186,6 +220,67 @@ def create_app_v2() -> Flask:
             return jsonify({"ok": False, "error": str(ex)}), 500
 
     app.add_url_rule('/v2/health', 'health_v2', health_v2, methods=['GET'])
+
+    # DB check endpoint to verify sqlite file visibility and basic tables
+    def db_check_v2():
+        import sqlite3
+        result = {"ok": False, "db_path": app.config.get("APP_CONFIG", {}).get("db_path")}
+        try:
+            db_path = result["db_path"]
+            if not db_path or not os.path.exists(db_path):
+                result.update({"error": "db_path not found"})
+                return jsonify(result), 500
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            counts = {}
+            for table in ("Peptides", "Nav1_7_InhibitorPeptides"):
+                try:
+                    cur.execute(f"SELECT COUNT(1) FROM {table}")
+                    counts[table] = cur.fetchone()[0]
+                except Exception as ex:
+                    counts[table] = f"error: {ex}"
+            conn.close()
+            result.update({"ok": True, "counts": counts})
+            return jsonify(result)
+        except Exception as ex:
+            result.update({"error": str(ex)})
+            return jsonify(result), 500
+
+    app.add_url_rule('/v2/db_check', 'db_check_v2', db_check_v2, methods=['GET'])
+
+    
+    # Gzip compression for response bodies
+    try:
+        from flask_compress import Compress
+        Compress(app)
+    except (ImportError, Exception):
+        app.logger.debug("Flask-Compress not available; skipping compression setup")
+    
+    # Cache headers for static assets
+    @app.after_request
+    def add_cache_headers(response):
+        """Add appropriate cache headers to responses"""
+        if response.content_type and 'text/html' in response.content_type:
+            # HTML: short cache for freshness
+            response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 hour
+        elif response.content_type and any(ct in response.content_type for ct in ['text/css', 'application/javascript', 'image/']):
+            # Static assets: long cache (1 year)
+            response.headers['Cache-Control'] = 'public, max-age=31536000'
+            response.headers['Expires'] = 'Wed, 21 Oct 2026 07:28:00 GMT'
+        elif response.content_type and 'application/json' in response.content_type:
+            # API responses: no cache
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        
+        # Security headers
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # Compression header
+        response.headers['Vary'] = 'Accept-Encoding'
+        
+        return response
+    
 
     # Optionally expose legacy-compatible alias routes for the UI during migration
     if app.config.get('LEGACY_ALIASES_ENABLED', False):

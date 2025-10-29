@@ -20,6 +20,9 @@ Este proyecto proporciona herramientas para analizar la estructura y propiedades
 - **Análisis de IC50**:  Integración de datos de actividad biológica; todos los valores se convierten a nM para permitir análisis comparativos de actividad  
 
 - **Correlación Estructura-Actividad**: Análisis combinado de métricas estructurales y datos IC50
+- **Filtro de Toxinas NaSpTx**: Búsqueda basada en motivos (X1X2-S-WCKX3) con scoring heurístico y soporte para ≥6 cisteínas.
+- **Visualización Multi-Modo**: Modos Vectores Dipolares, Puentes Disulfuro y Ambos con ΔZ resaltado y transición instantánea.
+- **Ordenamiento Angular vs WT**: Toxinas filtradas ordenadas por desviación del ángulo respecto al dipolo WT `hwt4_Hh2a_WT` (calculado desde PSF/PDB generados).
 
 ## 🚀 Instalación Rápida
 
@@ -391,12 +394,31 @@ Residue_ID,Residue_Name,Chain,Position,Degree_Centrality,Betweenness_Centrality,
 - **Monitoreo de rendimiento**: Seguimiento de tiempos de procesamiento
 
 #### Resolución de Conflictos
-- **Rutas duplicadas**: Eliminación del conflicto `/export_family_csv` en viewer_routes.py
-- **Consolidación de funciones**: Unificación de lógica de exportación
-- **Manejo de errores**: Sistema robusto de captura y manejo de excepciones
-
 ### Paso 6: Análisis por familias (Nuevo)
 - **Seleccionar familia**: Usar el selector de familia para análisis comparativo
+
+Este proyecto incluye una configuración Docker lista para producción usando Gunicorn y un endpoint de salud en `/v2/health`. En un VPS, se publica solo en `127.0.0.1` para ser expuesto mediante Nginx Proxy Manager (NPM).
+
+### Producción (VPS)
+
+```powershell
+# Construir imagen y levantar el servicio de la API
+docker compose up -d app
+
+# Verificar salud desde el VPS (estándar NPM: usar IP pública del host)
+curl http://51.79.49.242:8087/v2/health
+```
+
+Configura NPM para apuntar el dominio (p. ej. `tesis.brosdev.duckdns.org`) a `http://51.79.49.242:8087` con SSL de Let's Encrypt. Guía detallada en `docs/deploy/npm_proxy_setup.md`.
+
+### Desarrollo local
+
+```powershell
+# Levantar con recarga y bind en localhost:5001
+docker compose up dev
+```
+
+El servicio de desarrollo monta el código fuente y ejecuta `python run_v2.py`.
 - **Exportar por familia**: Descargar datasets completos de familias específicas
 - **Análisis IC50**: Revisar correlaciones estructura-actividad en los datos exportados
 - **Comparación de subfamilias**: Evaluar diferencias entre μ-TRTX-H y μ-TRTX-C
