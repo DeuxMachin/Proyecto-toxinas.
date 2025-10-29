@@ -2,6 +2,23 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+## [2.5.2] – 2025-10-29
+### Added
+- Overlay de carga con spinner al cambiar de pestaña IC50 (“Todos / Con IC50 / Sin IC50”) y al cambiar de página en el visualizador.
+- Bloqueo temporal de navegación “Anterior / Siguiente” mientras se cargan y renderizan los dipolos.
+
+### Changed
+- Diseños de los botones “Todos / Con IC50 / Sin IC50” con estilo pill, gradiente, sombras y estado activo; ubicados a la izquierda en el mismo contenedor que “Vectores Dipolares” y “Puentes Disulfuro”.
+
+### Technical Details
+- Frontend:
+  - motif_dipoles.js: helpers getIc50Overlay/showIc50Loading/hideIc50Loading; deshabilita botones IC50 y paginación durante renderPage(); re‑habilita en finally.
+  - toxin_filter.html: estilos para .ic50-filter-btn y clases del overlay (.ic50-loading-overlay, .ic50-loading-box, .ic50-spinner).
+- Comportamiento:
+  - Cambio de pestaña IC50: muestra overlay, resetea a página 1, aplica filtro (cliente) y re-renderiza; luego oculta overlay.
+  - Cambio de página: muestra overlay “Cargando página…”, desactiva Anterior/Siguiente, renderiza y restaura controles.
+
+---
 
 ## [2.5.1] – 2025-10-29
 ### Changed

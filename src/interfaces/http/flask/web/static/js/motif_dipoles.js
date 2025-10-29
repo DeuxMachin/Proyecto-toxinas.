@@ -24,6 +24,38 @@ document.addEventListener('DOMContentLoaded', () => {
   let referenceOptions = [];
   let referenceDisplayName = 'Proteína WT';
 
+  // ========== OVERLAY DE CARGA PARA FILTRADO IC50 ==========
+  function getIc50Overlay() {
+    const cardBody = document.querySelector('#filtered-dipoles-card .card-body');
+    if (!cardBody) return null;
+    let overlay = document.getElementById('ic50-loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ic50-loading-overlay';
+      overlay.className = 'ic50-loading-overlay';
+      overlay.innerHTML = `
+        <div class="ic50-loading-box">
+          <div class="ic50-spinner"></div>
+          <span id="ic50-loading-text">Filtrando…</span>
+        </div>
+      `;
+      cardBody.appendChild(overlay);
+    }
+    return overlay;
+  }
+  function showIc50Loading(text = 'Filtrando…') {
+    const overlay = getIc50Overlay();
+    if (!overlay) return;
+    const label = overlay.querySelector('#ic50-loading-text');
+    if (label) label.textContent = text;
+    overlay.style.display = 'flex';
+  }
+  function hideIc50Loading() {
+    const overlay = getIc50Overlay();
+    if (!overlay) return;
+    overlay.style.display = 'none';
+  }
+
   // ========== FUNCIONES DE DETECCIÓN DE PUENTES DISULFURO ==========
   
   function findDisulfideBonds(sequence = '') {
@@ -59,6 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function renderPage() {
+    // Mostrar overlay de carga y deshabilitar navegación de página mientras se renderiza
+    try { showIc50Loading('Cargando página…'); } catch(e) {}
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -172,14 +208,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Wire filter buttons
-        leftGroup.addEventListener('click', (ev) => {
+        leftGroup.addEventListener('click', async (ev) => {
           const btn = ev.target.closest('.ic50-filter-btn');
           if (!btn) return;
           leftGroup.querySelectorAll('.ic50-filter-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          ic50Filter = btn.dataset.mode || 'all';
+          const mode = btn.dataset.mode || 'all';
+          ic50Filter = mode;
           page = 1; // resetear a la primera página al cambiar el filtro
-          renderPage();
+          // Mostrar overlay y deshabilitar botones mientras se recalcula
+          const label = mode === 'with_ic50' ? 'Filtrando: Con IC50…'
+                      : mode === 'without_ic50' ? 'Filtrando: Sin IC50…'
+                      : 'Cargando todos…';
+          showIc50Loading(label);
+          leftGroup.querySelectorAll('.ic50-filter-btn').forEach(b => { b.disabled = true; });
+          try {
+            await renderPage();
+          } finally {
+            hideIc50Loading();
+            leftGroup.querySelectorAll('.ic50-filter-btn').forEach(b => { b.disabled = false; });
+          }
         });
 
         // Wire chart button
@@ -269,7 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       })();
     } catch (e) {
-      grid.innerHTML = `<div class="alert alert-danger" style="grid-column:1/-1;">Error: ${e.message}</div>`;
+      grid.innerHTML = `<div class=\"alert alert-danger\" style=\"grid-column:1/-1;\">Error: ${e.message}</div>`;
+    } finally {
+      // Ocultar overlay y re-habilitar navegación
+      try { hideIc50Loading(); } catch(e) {}
+      if (prevBtn) prevBtn.disabled = false;
+      if (nextBtn) nextBtn.disabled = false;
     }
   }
 
