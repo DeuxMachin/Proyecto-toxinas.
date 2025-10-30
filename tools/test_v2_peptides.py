@@ -7,9 +7,9 @@ app = create_app()
 with app.test_client() as c:
     for source in ['toxinas', 'nav1_7']:
         r = c.get(f'/v2/peptides?source={source}')
-        print(source, r.status_code, r.is_json)
+        # response available in `r`; inspect in debugger if needed
         data = r.get_json()
-        print('keys', list(data.keys()))
-        print('count', len(data.get('items', [])))
+        # keys and counts available in `data`
         if data.get('items'):
-            print('first', data['items'][0])
+            # first item available in data['items'][0]
+            pass

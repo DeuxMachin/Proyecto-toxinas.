@@ -89,8 +89,8 @@ class Nav17ToxinGraphAnalyzer:
                 sasa_values[res_id] = dssp[k][2]
                 
             return residue_ss, sasa_values
-        except Exception as e:
-            print(f"Advertencia: No se pudo calcular estructura secundaria: {e}")
+        except Exception:
+            # Failed to compute DSSP; return empty maps
             return {}, {}
     
     def find_disulfide_bridges(self, structure):
@@ -215,7 +215,7 @@ class Nav17ToxinGraphAnalyzer:
                     self.dipole_moment_vector = dipole_vector
                     
                 except ImportError:
-                    print("MDAnalysis not available, using BioPython fallback")
+                    # MDAnalysis not available, fallback to BioPython method
                     charges, positions, center_of_mass = self._extract_charges_positions_from_file(pdb_path)
                     dipole_vector = np.sum(charges[:, np.newaxis] * (positions - center_of_mass), axis=0)
                     self.dipole_moment_vector = dipole_vector
@@ -261,11 +261,9 @@ class Nav17ToxinGraphAnalyzer:
                 'method': 'PSF' if (psf_path and os.path.exists(psf_path)) else 'calculated'
             }
             
-        except Exception as e:
-            print(f"Error in dipole calculation: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise e
+        except Exception:
+            # propagate exception to caller
+            raise
 
     def load_pdb_structure(self, pdb_path):
         """Load PDB structure using BioPython"""
@@ -363,15 +361,12 @@ class Nav17ToxinGraphAnalyzer:
             positions = np.array(positions)
             center_of_mass = np.mean(positions, axis=0)
             
-            print(f"Processed {len(charges)} residues for dipole calculation")
-            print(f"Total charge: {np.sum(charges):.1f}")
-            print(f"Center of mass: [{center_of_mass[0]:.2f}, {center_of_mass[1]:.2f}, {center_of_mass[2]:.2f}]")
+            # processed residues and center_of_mass computed
             
             return charges, positions, center_of_mass
             
-        except Exception as e:
-            print(f"Error extracting charges and positions: {str(e)}")
-            raise e
+        except Exception:
+            raise
 
     def identify_pharmacophore_residues(self, G, pharmacophore_pattern=None):
         """
@@ -423,7 +418,7 @@ class Nav17ToxinGraphAnalyzer:
         
         # Búsqueda de puentes disulfuro 
         disulfide_bridges = self.find_disulfide_bridges(structure)
-        print(f"Encontrados {len(disulfide_bridges)} puentes disulfuro")
+    # number of disulfide bridges computed
         
         # Cálculo de momento dipolar
         dipole = self.calculate_dipole_moment(structure)
@@ -515,70 +510,15 @@ class Nav17ToxinGraphAnalyzer:
     
     def calculate_graph_metrics(self, G):
         """Calcula métricas de grafo centradas en características relevantes para Nav1.7"""
-        if len(G) == 0:
-            return {"error": "Grafo vacío"}
-            
-        metrics = {
-            'num_nodes': G.number_of_nodes(),
-            'num_edges': G.number_of_edges(),
-            'avg_degree': round(sum(dict(G.degree()).values()) / len(G), 2),
-            'density': round(nx.density(G), 4),
-            'clustering_coefficient': round(nx.average_clustering(G), 4),
-            'disulfide_count': G.graph.get('disulfide_count', 0),
-            'dipole_magnitude': round(G.graph.get('dipole_magnitude', 0), 2),
-        }
+        # Usar el módulo común para evitar duplicación
+        from src.infrastructure.graph.graph_metrics import compute_comprehensive_metrics
         
-        # Cálculo de métricas de centralidad 
-        degree_centrality = nx.degree_centrality(G)
-        betweenness_centrality = nx.betweenness_centrality(G)
-        closeness_centrality = nx.closeness_centrality(G)
-        eigenvector_centrality = nx.eigenvector_centrality_numpy(G)
+        result = compute_comprehensive_metrics(G)
         
-        # Valores promedio de centralidad
-        metrics['avg_degree_centrality'] = round(sum(degree_centrality.values()) / len(degree_centrality), 4)
-        metrics['avg_betweenness_centrality'] = round(sum(betweenness_centrality.values()) / len(betweenness_centrality), 4)
-        metrics['avg_closeness_centrality'] = round(sum(closeness_centrality.values()) / len(closeness_centrality), 4)
-        metrics['avg_eigenvector_centrality'] = round(sum(eigenvector_centrality.values()) / len(eigenvector_centrality), 4)
+        # Agregar métricas específicas del dominio si es necesario
+        # (por ahora, el módulo común cubre todo)
         
-        # Almacenamiento de centralidad para cada nodo
-        nx.set_node_attributes(G, degree_centrality, 'degree_centrality')
-        nx.set_node_attributes(G, betweenness_centrality, 'betweenness_centrality')
-        nx.set_node_attributes(G, closeness_centrality, 'closeness_centrality')
-        nx.set_node_attributes(G, eigenvector_centrality, 'eigenvector_centrality')
-        
-        # Cálculo de estadísticas de distribución de carga
-        charges = [G.nodes[n]['charge'] for n in G.nodes()]
-        metrics['total_charge'] = sum(charges)
-        metrics['charge_std_dev'] = np.std(charges)
-        
-        # Cálculo de distribución de hidrofobicidad
-        hydrophobicity = [G.nodes[n]['hydrophobicity'] for n in G.nodes()]
-        metrics['avg_hydrophobicity'] = round(np.mean(hydrophobicity), 2)
-        metrics['hydrophobicity_std_dev'] = round(np.std(hydrophobicity), 2)
-        
-        # Cálculo de características superficiales
-        surface_nodes = [n for n, attr in G.nodes(data=True) if attr.get('is_surface', False)]
-        if surface_nodes:
-            surface_charges = [G.nodes[n]['charge'] for n in surface_nodes]
-            surface_hydrophobicity = [G.nodes[n]['hydrophobicity'] for n in surface_nodes]
-            
-            metrics['surface_charge'] = sum(surface_charges)
-            metrics['surface_hydrophobicity'] = round(np.mean(surface_hydrophobicity), 2)
-            metrics['surface_to_total_ratio'] = round(len(surface_nodes) / len(G.nodes()), 2)
-        
-        # Conteo de residuos pharmacophore
-        pharm_nodes = [n for n, attr in G.nodes(data=True) if attr.get('is_pharmacophore', False)]
-        metrics['pharmacophore_count'] = len(pharm_nodes)
-        
-        try:
-            communities = nx.algorithms.community.greedy_modularity_communities(G)
-            metrics['community_count'] = len(communities)
-            metrics['modularity'] = nx.algorithms.community.modularity(G, communities)
-        except:
-            metrics['community_count'] = 0
-            metrics['modularity'] = 0
-        
-        return metrics
+        return result['properties']
     
     def detect_structural_motifs(self, G):
         """Detecta motivos estructurales comunes en toxinas que interactúan con Nav1.7"""
@@ -663,34 +603,42 @@ class Nav17ToxinGraphAnalyzer:
         """
         try:
             toxin_name = os.path.splitext(pdb_filename)[0]
-            print(f"=== Análisis de toxina {toxin_name} ===")
+            # analysis started for toxin
             
             # 1. Cargar estructura
             structure = self.load_pdb(pdb_filename)
-            print(f"• Estructura cargada desde archivo: {pdb_filename}")
+            # structure loaded
             
             # 2. Extraer secuencia desde estructura
             ppb = PPBuilder()
             seq = None
             for pp in ppb.build_peptides(structure):
                 seq = pp.get_sequence()
-                print(f"• Secuencia (estructura): {seq}")
+                # sequence extracted
                 break
             
             # 3. Construcción del grafo
-            print(f"\n» Generando grafo molecular (distancia corte: {cutoff_distance}Å)...")
+            # building molecular graph
             G = self.build_enhanced_graph(structure, cutoff_distance, pharmacophore_pattern)
             
-            # 4. Cálculo de métricas 
-            metrics = self.calculate_graph_metrics(G)
+            # 4. Cálculo de métricas usando el módulo común
+            from src.infrastructure.graph.graph_metrics import compute_comprehensive_metrics
+            metrics_result = compute_comprehensive_metrics(G)
+            metrics = metrics_result['properties']
             
-            degree_centrality = nx.degree_centrality(G)
-            betweenness_centrality = nx.betweenness_centrality(G)
-            closeness_centrality = nx.closeness_centrality(G)
-            clustering_coefficient = nx.clustering(G)  # Por nodo
+            # Extraer centralidades para compatibilidad
+            centrality = metrics_result['summary_statistics']
+            top_5 = metrics_result['top_5_residues']
+            
+            degree_centrality = metrics_result['centrality']['degree'] if 'centrality' in metrics_result else {}
+            betweenness_centrality = metrics_result['centrality']['betweenness'] if 'centrality' in metrics_result else {}
+            closeness_centrality = metrics_result['centrality']['closeness'] if 'centrality' in metrics_result else {}
+            clustering_coefficient = metrics_result['centrality']['clustering'] if 'centrality' in metrics_result else {}
 
-            # Encontrar todos los residuos con el valor máximo para cada métrica
+            # Encontrar todos los residuos con el valor máximo para cada métrica (legacy)
             def find_all_max_residues(metric_dict):
+                if not metric_dict:
+                    return []
                 max_value = max(metric_dict.values())
                 return [res for res, value in metric_dict.items() if abs(value - max_value) < 0.0001]
             
@@ -703,106 +651,43 @@ class Nav17ToxinGraphAnalyzer:
             motifs = self.detect_structural_motifs(G)
             
             # 6. Mostrar resultados 
-            print("\n=== RESULTADOS DEL ANÁLISIS ===")
-            print(f"• Toxina analizada: {toxin_name}")
-            print(f"• Información estructural básica:")
-            print(f"  - Número de residuos (nodos): {metrics['num_nodes']}")
-            print(f"  - Número de interacciones (aristas): {metrics['num_edges']}")
-            print(f"  - Puentes disulfuro: {metrics['disulfide_count']}")
+            # results computed
             
             # 7. Mostrar motivos estructurales completos
-            print("\n• Motivos estructurales identificados:")
-            for motif, present in motifs.items():
-                status = "✓ PRESENTE" if present else "✗ AUSENTE"
-                
-                # Mostrar información adicional para cada motivo
-                if motif == 'beta_hairpin':
-                    detail = f" ({motifs.get('beta_strand_count', 0)} hebras beta)" if present else ""
-                    print(f"  - Horquilla beta: {status}{detail}")
-                elif motif == 'cystine_knot':
-                    print(f"  - Nudo de cistina: {status}")
-                elif motif == 'positive_patch':
-                    print(f"  - Parche de residuos cargados positivamente: {status}")
-                elif motif == 'hydrophobic_patch':
-                    print(f"  - Parche hidrofóbico superficial: {status}")
+            # motifs computed
             
             # 8. Visualización del grafo 
             title = f"Toxina Nav1.7: {toxin_name} (corte={cutoff_distance}Å)"
-            print("\n» Análisis completado exitosamente")
+            # analysis completed successfully
 
             return {
                 'toxin': toxin_name,
                 'pharmacophore': pharmacophore_pattern,
                 'sequence': str(seq) if seq else "",
                 'motifs': motifs,
-
+                'properties': metrics,  # Para compatibilidad
+                'summary_statistics': centrality,  # Nuevo formato para JS
+                'top_5_residues': top_5,  # Nuevo formato para JS
                 'graph_properties': {
                     'nodes': metrics['num_nodes'],
                     'edges': metrics['num_edges'],
                     'disulfide_bridges': metrics['disulfide_count'],
-                    'density': nx.density(G),
-                    'clustering_coefficient_avg': nx.average_clustering(G)
+                    'density': metrics['density'],
+                    'clustering_coefficient_avg': metrics['avg_clustering']
                 },
-
                 'centrality_measures': {
                     'degree_centrality': degree_centrality,
                     'betweenness_centrality': betweenness_centrality,
                     'closeness_centrality': closeness_centrality,
                     'clustering_coefficient': clustering_coefficient,
-
                     'degree_centrality_more': degree_centrality_more,
                     'betweenness_centrality_more': betweenness_centrality_more,
                     'closeness_centrality_more': closeness_centrality_more,
                     'clustering_coefficient_more': clustering_coefficient_more
                 },
-
                 'graph': G
             }
             
-        except Exception as e:
-            print(f"ERROR ANALIZANDO {pdb_filename}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            # Let caller handle exceptions; return None to indicate failure
             return None
-
-
-'''if __name__ == "__main__":
-    analyzer = Nav17ToxinGraphAnalyzer(pdb_folder="pdbs/")
-    
-    # Selecciona una toxina para analizar (debe ser un archivo PDB en la carpeta pdbs/)
-    toxin_file = "bTRTXCd1a.pdb"
-    
-
-    
-    result = analyzer.analyze_single_toxin(toxin_file, cutoff_distance=6.0, plot_3d=True)
-    
-    if result:
-        print("\n--- MÉTRICAS DE CENTRALIDAD Y GRAFO ---")
-        print(f"Density: {result['graph_properties']['density']:.4f}")
-        
-        # Función para formatear la lista de residuos como string
-        def format_residues(residues_list, metric_dict):
-            max_value = max(metric_dict.values())
-            return f"{', '.join(map(str, residues_list))} (valor: {max_value:.4f})"
-        
-        print("\nResiduos con mayor centralidad de grado:", 
-              format_residues(result['centrality_measures']['degree_centrality_more'], 
-                             result['centrality_measures']['degree_centrality']))
-        
-        print("Residuos con mayor centralidad de intermediación:", 
-              format_residues(result['centrality_measures']['betweenness_centrality_more'], 
-                             result['centrality_measures']['betweenness_centrality']))
-        
-        print("Residuos con mayor centralidad de cercanía:", 
-              format_residues(result['centrality_measures']['closeness_centrality_more'], 
-                             result['centrality_measures']['closeness_centrality']))
-        
-        print("Residuos con mayor coeficiente de agrupamiento:", 
-              format_residues(result['centrality_measures']['clustering_coefficient_more'], 
-                             result['centrality_measures']['clustering_coefficient']))
-
-print("\nRecuerda: Puedes analizar cualquier toxina cambiando el valor de toxin_file")
-        
-    # Visualizar métricas de centralidad en formato detallado
-if result:
-    analyzer.visualize_centrality_metrics(result)'''

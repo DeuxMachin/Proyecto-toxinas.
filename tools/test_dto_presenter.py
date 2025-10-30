@@ -5,4 +5,4 @@ from src.interfaces.http.flask.presenters.graph_presenter import GraphPresenter
 
 props = {"num_nodes": 10, "num_edges": 20}
 meta = {"source": "nav1_7", "id": 7, "granularity": "CA"}
-print(GraphPresenter.present(props, meta))
+# Present output available via GraphPresenter.present(props, meta)

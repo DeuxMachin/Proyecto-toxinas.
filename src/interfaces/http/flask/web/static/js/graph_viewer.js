@@ -221,11 +221,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     
     function updateAdvancedMetrics(analysis) {
-        console.log('updateAdvancedMetrics called with:', analysis);
-        
         // Métricas de centralidad 
         const metrics = analysis.summary_statistics;
-        console.log('summary_statistics:', metrics);
         
         if (metrics) {
             // Degree Centrality
@@ -257,7 +254,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Top 5 residuos
         const top5 = analysis.top_5_residues;
-        console.log('top_5_residues:', top5);
         
         if (top5) {
             populateTop5List('top-degree-list', top5.degree_centrality);
@@ -379,8 +375,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                     }
                     url = `/v2/export/residues/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}&export_type=residues`;
                 }
-                
-                console.log(`🚀 Exporting ${exportType} for ${toxinName} using URL: ${url}`);
                 
                 // Simulate delay to show progress
                 await new Promise(resolve => setTimeout(resolve, 1500));

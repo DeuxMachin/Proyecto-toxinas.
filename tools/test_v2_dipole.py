@@ -6,9 +6,9 @@ from app import create_app
 app = create_app()
 with app.test_client() as c:
     r = c.post('/v2/dipole/nav1_7/7')
-    print('dipole', r.status_code, r.is_json)
+    # response available in r; if JSON, parse with r.get_json()
     if r.is_json:
         data = r.get_json()
-        print('keys', list(data.keys()))
         if 'dipole' in data:
-            print('dipole_keys', list(data['dipole'].keys())[:5])
+            # dipole keys available in data['dipole']
+            pass

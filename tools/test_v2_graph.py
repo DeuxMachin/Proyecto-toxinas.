@@ -19,11 +19,13 @@ peptide_id = peptides[0][0]
 
 with app.test_client() as c:
     resp = c.get(f"/v2/proteins/{source}/{peptide_id}/graph?granularity=CA&long=5&threshold=10.0")
-    print('STATUS', resp.status_code)
+    # response received; inspect in debugger if needed
     if resp.is_json:
         data = resp.get_json()
-        print('JSON_KEYS', sorted(list(data.keys())))
+        # JSON keys available in `data`
         if 'properties' in data:
-            print('PROP_KEYS', sorted(k for k in data['properties'].keys())[:10], '...')
+            # properties keys available
+            pass
     else:
-        print('TEXT', resp.data[:500])
+        # non-JSON response body available in resp.data
+        pass
