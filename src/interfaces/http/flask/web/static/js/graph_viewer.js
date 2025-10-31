@@ -114,28 +114,49 @@ document.addEventListener("DOMContentLoaded", async () => {
             const distValue = distInput.value;
             const granularity = granularityToggle.checked ? 'atom' : 'CA';
             
+            // Evitar aristas por defecto en atómico
+            const edgesParam = (granularity === 'atom') ? '0' : '1';
+            
             showLoading(graphPlotElement);
             
-        const response = await fetch(`/v2/proteins/${currentProteinGroup}/${currentProteinId}/graph?long=${longValue}&threshold=${distValue}&granularity=${granularity}`);
+            const url = `/v2/proteins/${currentProteinGroup}/${currentProteinId}/graph?long=${longValue}&threshold=${distValue}&granularity=${granularity}&edges=${edgesParam}`;
+            console.time('fetch-graph');
+            const response = await fetch(url);
+            console.timeEnd('fetch-graph');
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
+            console.time('parse-json');
             const data = await response.json();
+            console.timeEnd('parse-json');
             
             if (data.error) {
                 clearAnalysisPanel();
                 return;
             }
 
+            // LOG de tiempos del servidor
+            if (data.meta && data.meta.perf_ms) {
+                console.log('[GraphPerf] build_ms=', data.meta.perf_ms.build_ms,
+                            'viz_ms=', data.meta.perf_ms.viz_ms,
+                            'present_ms=', data.meta.perf_ms.present_ms);
+            }
+
             // El backend ahora retorna trazas scatter3d y layout.scene para vista 3D real
+            console.time('plot-build');
+            const { nodes, edges } = data; // lo que recibas, ajustar según el JSON
+            console.timeEnd('plot-build');
+            
+            console.time('plot-react');
             Plotly.react(graphPlotElement, data.plotData, data.layout, {
                 displayModeBar: true,
                 displaylogo: false,
                 modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
                 willReadFrequently: true
             });
+            console.timeEnd('plot-react');
             
             updateBasicStructuralInfo(data.properties, granularity);
             updateAdvancedMetrics(data); 
@@ -221,11 +242,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     
     function updateAdvancedMetrics(analysis) {
-        console.log('updateAdvancedMetrics called with:', analysis);
-        
         // Métricas de centralidad 
         const metrics = analysis.summary_statistics;
-        console.log('summary_statistics:', metrics);
         
         if (metrics) {
             // Degree Centrality
@@ -257,7 +275,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Top 5 residuos
         const top5 = analysis.top_5_residues;
-        console.log('top_5_residues:', top5);
         
         if (top5) {
             populateTop5List('top-degree-list', top5.degree_centrality);
@@ -379,8 +396,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                     }
                     url = `/v2/export/residues/${currentProteinGroup}/${currentProteinId}?long=${longValue}&threshold=${distValue}&granularity=${granularity}&export_type=residues`;
                 }
-                
-                console.log(`🚀 Exporting ${exportType} for ${toxinName} using URL: ${url}`);
                 
                 // Simulate delay to show progress
                 await new Promise(resolve => setTimeout(resolve, 1500));

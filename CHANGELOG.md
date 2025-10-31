@@ -2,6 +2,28 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+## [2.5.3] – 2025-10-30
+
+### Changed
+
+- Optimización integral del código eliminando redundancias en módulos de cálculo de grafos:
+  - Creación del módulo común `graph_metrics.py` con funciones centralizadas para cálculo de métricas de grafo, estadísticas de centralidad y top residuos.
+  - Refactorización de `graph_analysis2D.py`, `graphein_graph_adapter.py` y `graph_presenter.py` para usar el módulo común y eliminar código duplicado.
+  - Implementación de lazy imports en `graph_metrics.py` para evitar dependencias circulares y mejorar rendimiento.
+
+### Fixed
+
+- Eliminación completa de logs innecesarios en producción:
+  - Remoción de `print()` statements en archivos Python (`graph_analysis2D.py`, archivos de test en `tools/`) dejando solo logs de tiempo en `run_full_pipeline.py`.
+  - Eliminación de `console.log()` en JavaScript (`graph_viewer.js`) para limpiar la consola del navegador.
+- Corrección de errores de sintaxis en `test_psf_generation.py` causados por indentación incorrecta de comentarios.
+
+### Technical Details
+
+- Arquitectura: Separación de responsabilidades entre construcción de grafos, cálculo de métricas y presentación; uso de lazy imports para compatibilidad con NetworkX y NumPy.
+- Rendimiento: Reducción significativa de código duplicado y mejora en mantenibilidad del sistema de análisis de grafos.
+- Calidad: Limpieza de código de producción eliminando outputs de debug que afectaban la experiencia del usuario.
+
 ## [2.5.2] – 2025-10-29
 ### Added
 - Overlay de carga con spinner al cambiar de pestaña IC50 (“Todos / Con IC50 / Sin IC50”) y al cambiar de página en el visualizador.

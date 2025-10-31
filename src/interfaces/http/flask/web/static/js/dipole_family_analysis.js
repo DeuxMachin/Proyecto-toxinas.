@@ -1,21 +1,7 @@
 // filepath: app/static/js/dipole_family_analysis.js
 class DipoleFamilyAnalyzer {
     constructor() {
-        console.log('🚀 DipoleFamilyAnalyzer iniciado');
-        console.log('🔍 Elementos encontrados:', {
-            familySelector: !!document.getElementById('familySelector'),
-            visualizeFamilyBtn: !!document.getElementById('visualizeFamilyBtn'),
-            loadFamilyDataBtn: !!document.getElementById('loadFamilyDataBtn'),
-            familyInfo: !!document.getElementById('familyInfo'),
-            familyInfoText: !!document.getElementById('familyInfoText'),
-            visualizationArea: !!document.getElementById('visualizationArea'),
-            statisticsArea: !!document.getElementById('statisticsArea'),
-            selectedFamilyTitle: !!document.getElementById('selectedFamilyTitle'),
-            loadingSpinner: !!document.getElementById('loadingSpinner'),
-            visualizationPlaceholder: !!document.getElementById('visualizationPlaceholder'),
-            peptideList: !!document.getElementById('peptideList'),
-            visualizationGrid: !!document.getElementById('visualizationGrid'),
-        });
+      
         
         this.familySelector = document.getElementById('familySelector');
         this.visualizeFamilyBtn = document.getElementById('visualizeFamilyBtn');
@@ -52,22 +38,19 @@ class DipoleFamilyAnalyzer {
 
     async loadFamilyOptions() {
         try {
-            console.log('🔄 Iniciando carga de familias...');
             
             // Usar únicamente el endpoint v2
             const response = await fetch('/v2/families');
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response headers:', response.headers);
+   
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const data = await response.json();
-            console.log('📦 Response data:', data);
+      
             
             if (data.success) {
-                console.log('✅ Familias encontradas:', data.families.length);
                 
                 if (data.families.length === 0) {
                     console.warn('⚠️ No se encontraron familias en la respuesta');
@@ -75,7 +58,6 @@ class DipoleFamilyAnalyzer {
                 }
                 
                 data.families.forEach((family, index) => {
-                    console.log(`👨‍👩‍👧‍👦 Procesando familia ${index + 1}:`, family);
                     const option = document.createElement('option');
                     option.value = family.value;
                     option.textContent = `${family.text} (${family.count} péptidos)`;
@@ -83,7 +65,6 @@ class DipoleFamilyAnalyzer {
                     this.familySelector.appendChild(option);
                 });
                 
-                console.log('✅ Todas las familias procesadas correctamente');
             } else {
                 console.error('❌ Error en response:', data.error);
                 alert(`Error cargando familias: ${data.error}`);
@@ -356,8 +337,7 @@ class DipoleFamilyAnalyzer {
         
         if (!selectedFamily) return;
         
-        console.log('🔍 DEBUG: Iniciando visualización familiar');
-        console.log('🔍 Familia seleccionada:', selectedFamily);
+
         
         try {
             this.showLoading(true, 'Calculando dipolos de la familia...');
@@ -367,11 +347,7 @@ class DipoleFamilyAnalyzer {
             const data = await response.json();
             
             if (data.success) {
-                console.log('🔍 Response completa:', data);
-                console.log('🔍 Número de resultados dipolo:', data.data?.dipole_results?.length || 0);
-                console.log('🔍 Número de errores:', data.data?.errors?.length || 0);
-                console.log('🔍 Primer resultado (si existe):', data.data?.dipole_results?.[0]);
-                
+
                 this.currentFamilyData = data.data;
                 this.createDipoleGrid(data.data.dipole_results);
                 this.displayFamilyStats();

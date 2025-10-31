@@ -12,7 +12,7 @@ END
 
 pdb = PDBPreprocessorAdapter()
 tmp = pdb.prepare_temp_pdb(pdb_text)
-print('TMP', tmp, os.path.exists(tmp))
+# tmp path available in `tmp`; existence via os.path.exists(tmp)
 
 TempFileService().cleanup([tmp])
-print('CLEANED', not os.path.exists(tmp))
+# cleanup result: not os.path.exists(tmp)
