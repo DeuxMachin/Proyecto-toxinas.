@@ -554,7 +554,6 @@ class MolstarProteinAnalyzer {
      */
     async showDipoleInPy3Dmol(dipoleData, pdbText) {
         try {
-            console.log("Creating py3Dmol visualization with dipole vector from database");
             
             // Get or create py3Dmol container
             const py3dmolDiv = this.getOrCreatePy3DmolDiv();
@@ -591,7 +590,7 @@ class MolstarProteinAnalyzer {
             // Store viewer reference
             this.py3dmolViewer = viewer;
             
-            console.log("py3Dmol visualization created successfully");
+           
             
         } catch (error) {
             console.error("Error creating py3Dmol visualization:", error);
