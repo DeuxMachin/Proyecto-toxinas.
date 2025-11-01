@@ -1,14 +1,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
     
-    // Configurar Plotly globalmente para optimizar rendimiento de canvas
-    if (typeof Plotly !== 'undefined') {
-        Plotly.setPlotConfig({
-            displayModeBar: true,
-            displaylogo: false,
-            modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
-            willReadFrequently: true
-        });
-    }
+    // Initialize Molstar Graph Renderer (WebGL-optimized, replaces Plotly)
+    let graphRenderer = null;
     
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -51,22 +44,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     let currentProteinGroup = null;
     let currentProteinId = null;
     
-    // Inicializamos el gráfico vacío con soporte 3D
-    Plotly.newPlot(graphPlotElement, [], {
-        title: 'Seleccione una proteína para ver su grafo',
-        height: 500,
-        scene: {
-            xaxis: { title: 'x' },
-            yaxis: { title: 'y' },
-            zaxis: { title: 'z' },
-            aspectmode: 'data'
-        }
-    }, {
-        displayModeBar: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
-        willReadFrequently: true
-    });
+    // Initialize WebGL graph renderer
+    graphRenderer = new MolstarGraphRenderer(graphPlotElement);
+    
+    // Show initial message
+    const initialMsg = document.createElement('div');
+    initialMsg.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 18px; text-align: center;';
+    initialMsg.innerHTML = '<i class="fas fa-project-diagram" style="font-size: 48px; margin-bottom: 16px;"></i><br>Seleccione una proteína para ver su grafo';
+    graphPlotElement.style.position = 'relative';
+    graphPlotElement.appendChild(initialMsg);
     
     // Eventos para actualizar automaticamente el grafo
     longInput.addEventListener('change', updateGraphVisualization);
@@ -144,19 +130,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                             'present_ms=', data.meta.perf_ms.present_ms);
             }
 
-            // El backend ahora retorna trazas scatter3d y layout.scene para vista 3D real
-            console.time('plot-build');
-            const { nodes, edges } = data; // lo que recibas, ajustar según el JSON
-            console.timeEnd('plot-build');
-            
-            console.time('plot-react');
-            Plotly.react(graphPlotElement, data.plotData, data.layout, {
-                displayModeBar: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d'],
-                willReadFrequently: true
-            });
-            console.timeEnd('plot-react');
+            // Render with WebGL-optimized renderer (replaces Plotly)
+            console.time('webgl-render');
+            if (graphRenderer) {
+                // Clear any initial message
+                const msgs = graphPlotElement.querySelectorAll('div');
+                msgs.forEach(msg => {
+                    if (msg.textContent.includes('Seleccione una proteína')) {
+                        msg.remove();
+                    }
+                });
+                
+                graphRenderer.loadGraph(data);
+            }
+            console.timeEnd('webgl-render');
             
             updateBasicStructuralInfo(data.properties, granularity);
             updateAdvancedMetrics(data); 
@@ -169,14 +156,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         } catch (error) {
             clearAnalysisPanel();
-            Plotly.react(graphPlotElement, [], {
-                title: 'Error al cargar el grafo: ' + error.message,
-                height: 500
-            }, {
-                displayModeBar: false,
-                displaylogo: false,
-                willReadFrequently: true
-            });
+            
+            // Show error message in renderer
+            if (graphRenderer) {
+                graphRenderer.clear();
+            }
+            
+            const errorMsg = document.createElement('div');
+            errorMsg.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff6b6b; font-size: 16px; text-align: center;';
+            errorMsg.innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i><br>Error al cargar el grafo:<br>' + error.message;
+            graphPlotElement.appendChild(errorMsg);
             
             // Notificar error de carga del grafo
             if (window.dualViewManager) {
@@ -287,17 +276,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function showLoading(element) {
-        Plotly.react(element, [], {
-            title: 'Cargando grafo...',
-            height: 500
-        }, {
-            displayModeBar: false,
-            displaylogo: false,
-            willReadFrequently: true
-        });
+        // Clear previous content
+        const msgs = element.querySelectorAll('div');
+        msgs.forEach(msg => msg.remove());
+        
+        const loadingMsg = document.createElement('div');
+        loadingMsg.className = 'graph-loading-indicator';
+        loadingMsg.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 16px; text-align: center;';
+        loadingMsg.innerHTML = '<div class="spinner" style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top-color: #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>Cargando grafo...';
+        element.appendChild(loadingMsg);
     }
     
     function hideLoading(element) {
+        const loadingIndicators = element.querySelectorAll('.graph-loading-indicator');
+        loadingIndicators.forEach(indicator => indicator.remove());
     }
 
     function setupExportButton() {

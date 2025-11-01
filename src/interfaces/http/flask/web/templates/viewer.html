@@ -25,6 +25,27 @@
     <!-- Estilos de Mol* (deferred con media=print) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css" media="print" onload="this.onload=null;this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css"></noscript>
+    
+    <!-- Spinner animation for graph loading -->
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #graph-plot {
+            position: relative;
+            min-height: 500px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .graph-plot-wrapper {
+            position: relative;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body class="viewer-page">
     <!-- NAVBAR -->
@@ -611,11 +632,11 @@
     <!-- Mol* viewer library -->
     <script src="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.js" defer></script>
     
-    <!-- Plotly for graphs -->
-    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js" defer></script>
-    
     <!-- py3Dmol for molecular visualization -->
     <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
+    
+    <!-- WebGL Graph Renderer (replaces Plotly) -->
+    <script src="{{ url_for('static', filename=asset_path('js/molstar_graph_renderer.js')) }}" defer></script>
     
     <!-- Custom scripts con defer -->
     <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>

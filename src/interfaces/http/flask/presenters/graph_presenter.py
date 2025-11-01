@@ -5,7 +5,7 @@ import numpy as np
 
 class GraphPresenter:
     @staticmethod
-    def present(properties: Dict[str, Any], meta: Dict[str, Any], fig_json: Dict[str, Any]) -> Dict[str, Any]:
+    def present(properties: Dict[str, Any], meta: Dict[str, Any], graph_data: Dict[str, Any]) -> Dict[str, Any]:
         # Helper to normalize numpy arrays/scalars into JSON-serializable types
         def normalize(obj):
             if isinstance(obj, np.ndarray):
@@ -111,8 +111,9 @@ class GraphPresenter:
 
         base = GraphResponseDTO(properties=normalize(properties), meta=normalize(meta)).__dict__
         base.update({
-            "plotData": normalize(fig_json.get("data")),
-            "layout": normalize(fig_json.get("layout")),
+            "nodes": normalize(graph_data.get("nodes", [])),
+            "edges": normalize(graph_data.get("edges", [])),
+            "graphMetadata": normalize(graph_data.get("metadata", {})),
             "summary_statistics": normalize(summary_stats_renamed),
             "top_5_residues": normalize(top5_residues),
             "key_residues": normalize(key_residues),

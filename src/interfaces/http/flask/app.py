@@ -76,13 +76,13 @@ def create_app_v2() -> Flask:
 
     # Infrastructure services / adapters
     from src.infrastructure.graphein.graphein_graph_adapter import GrapheinGraphAdapter
-    from src.infrastructure.graphein.graph_visualizer_adapter import PlotlyGraphVisualizerAdapter
+    from src.infrastructure.graphein.graph_visualizer_adapter import MolstarGraphVisualizerAdapter
     from src.infrastructure.exporters.excel_export_adapter import ExcelExportAdapter
     from src.infrastructure.pdb.pdb_preprocessor_adapter import PDBPreprocessorAdapter
     from src.infrastructure.fs.temp_file_service import TempFileService
 
     graphein_adapter = GrapheinGraphAdapter()
-    graph_visualizer = PlotlyGraphVisualizerAdapter()
+    graph_visualizer = MolstarGraphVisualizerAdapter()
     excel_exporter = ExcelExportAdapter()
     pdb_preprocessor = PDBPreprocessorAdapter(pdb_dir=getattr(cfg, 'pdb_dir', None), psf_dir=getattr(cfg, 'psf_dir', None))
     temp_files = TempFileService()
