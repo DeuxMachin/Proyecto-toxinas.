@@ -1,48 +1,45 @@
-
 services:
   app:
     build: .
     image: toxinas:v2
     container_name: toxinas_app
     restart: unless-stopped
+    env_file: .env
     environment:
       - PROJECT_ROOT=/app
       - HOST=0.0.0.0
       - PORT=5001
       - DEBUG=0
-      # Rutas explícitas de datos dentro del contenedor
       - TOXINS_DB_PATH=/app/database/toxins.db
       - PDB_DIR=/app/pdbs
       - PSF_DIR=/app/psfs
       - WT_REFERENCE_PATH=/app/pdbs/WT/generated/hwt4_Hh2a_WT.pdb
       - WT_REFERENCE_PSF_PATH=/app/pdbs/WT/generated/hwt4_Hh2a_WT.psf
-
     ports:
-      # Puerto publicado del host (estándar NPM: IP pública + 8087)
-      - "8087:5001"
+      - "127.0.0.1:5001:5001"
     volumes:
-      - ./database:/app/database
-      - ./pdbs:/app/pdbs
-      - ./psfs:/app/psfs
-      - ./tools/filtered:/app/tools/filtered
+      - toxinas_db:/app/database
+      - toxinas_pdbs:/app/pdbs:ro
+      - toxinas_psfs:/app/psfs:ro
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5001/v2/health"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5001/v2/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
-    logging:
+   logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-      networks:
-        - default
-        - web
-  networks:
-    web:
-      external: true
-  volumes:
-    toxinas_db:
-    toxinas_pdbs:
-    toxinas_psfs:
+    networks:
+      - default
+      - web
+
+networks:
+  web:
+    external: true
+volumes:
+  toxinas_db:
+  toxinas_pdbs:
+  toxinas_psfs:
