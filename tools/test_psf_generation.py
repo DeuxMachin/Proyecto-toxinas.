@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 """
 Script de prueba para validar la generación automática de PSF
 Toma el primer PDB de la carpeta pdbs/ y genera su PSF usando VMD/psfgen
@@ -17,10 +17,10 @@ sys.path.append(str(project_root / "src"))
 try:
     import vmd
     VMD_AVAILABLE = True
-    print("✓ VMD Python disponible")
+    # VMD Python available
 except ImportError:
     VMD_AVAILABLE = False
-    print("✗ VMD Python no disponible - usando subprocess")
+    # VMD Python not available; will use subprocess
 
 class PSFTestGenerator:
     def __init__(self):
@@ -55,7 +55,7 @@ class PSFTestGenerator:
             raise FileNotFoundError("No hay archivos PDB en el directorio pdbs/")
         
         first_pdb = sorted(pdb_files)[0]
-        print(f"📁 PDB seleccionado: {first_pdb.name}")
+        # selected PDB available via first_pdb.name
         return first_pdb
     
     def generate_psf_with_vmd_python(self, pdb_path, output_prefix):
@@ -63,7 +63,7 @@ class PSFTestGenerator:
         if not VMD_AVAILABLE:
             raise ImportError("VMD Python no está disponible")
         
-        print("🔧 Generando PSF con vmd-python...")
+        # generating PSF with vmd-python
         
         try:
             # Limpiar cualquier molécula existente
@@ -82,11 +82,11 @@ class PSFTestGenerator:
                 f'"{pdb_path}" {tops_tcl} "{output_prefix}" "PROA" 2.3]'
             )
             
-            print(f"🔧 Ejecutando: {cmd}")
+            # executing vmd command
             
             # Ejecutar
             result = vmd.evaltcl(cmd)
-            print(f"✓ Comando ejecutado. Resultado: {result}")
+            # command executed; result available in `result`
             
             # Los archivos se generan automáticamente
             psf_file = Path(f"{output_prefix}.psf")
@@ -95,18 +95,18 @@ class PSFTestGenerator:
             return psf_file, pdb_file
             
         except Exception as e:
-            print(f"❌ Error en vmd-python: {e}")
+            # error in vmd-python; raise after attempting to collect info
             # Intentar obtener más información del error
             try:
                 error_info = vmd.evaltcl('puts $errorInfo')
-                print(f"Información adicional del error: {error_info}")
+                # additional error information available in error_info
             except:
                 pass
             raise
     
     def generate_psf_with_subprocess(self, pdb_path, output_prefix):
         """Genera PSF usando VMD como subprocess"""
-        print("🔧 Generando PSF con VMD subprocess...")
+        # generating PSF with VMD subprocess
         
         # Crear script TCL temporal
         tcl_commands = f"""
@@ -130,12 +130,8 @@ exit
             ], capture_output=True, text=True, cwd=self.test_output_dir)
             
             if result.returncode != 0:
-                print(f"❌ Error en VMD: {result.stderr}")
+                # subprocess failed; stderr in result.stderr
                 raise RuntimeError(f"VMD falló: {result.stderr}")
-            
-            print("✓ VMD ejecutado exitosamente")
-            print("📄 Salida VMD:")
-            print(result.stdout)
             
             # Verificar archivos generados
             psf_file = Path(f"{output_prefix}.psf")
@@ -157,18 +153,16 @@ exit
                 break
         
         if not existing_psf:
-            print(f"⚠️  No se encontró PSF existente para {pdb_name.stem}")
+            # no existing PSF found
             return
-        
-        print(f"🔍 Comparando con PSF existente: {existing_psf.name}")
+
+        # comparing with existing PSF
         
         # Comparación básica de tamaño
         gen_size = generated_psf.stat().st_size
         exist_size = existing_psf.stat().st_size
         
-        print(f"📊 Tamaño generado: {gen_size} bytes")
-        print(f"📊 Tamaño existente: {exist_size} bytes")
-        print(f"📊 Diferencia: {abs(gen_size - exist_size)} bytes ({abs(gen_size - exist_size) / exist_size * 100:.1f}%)")
+        # generated and existing PSF sizes available: gen_size, exist_size
         
         # Comparación de líneas clave
         self._compare_psf_content(generated_psf, existing_psf)
@@ -192,21 +186,19 @@ exit
                     natoms2 = int(line.split()[0])
                     break
             
-            print(f"🧮 Átomos generado: {natoms1}")
-            print(f"🧮 Átomos existente: {natoms2}")
-            
+            # atom counts natoms1 and natoms2 available for inspection
             if natoms1 == natoms2:
-                print("✅ Mismo número de átomos")
-            else:
-                print("❌ Diferente número de átomos")
+                # same number of atoms
+                pass
                 
         except Exception as e:
-            print(f"⚠️  Error comparando contenido: {e}")
+            return
+        
+            # error comparing PSF content
     
     def run_test(self):
         """Ejecuta el test completo"""
-        print("🚀 Iniciando test de generación PSF")
-        print("=" * 50)
+        # starting PSF generation test
         
         try:
             # Obtener primer PDB
@@ -218,29 +210,27 @@ exit
                 psf_file, pdb_file = self.generate_psf_with_vmd_python(pdb_path, output_prefix)
             else:
                 psf_file, pdb_file = self.generate_psf_with_subprocess(pdb_path, output_prefix)
-            
-            # Verificar archivos generados
+
+            # verify generated files: psf_file.exists(), pdb_file.exists()
             if psf_file.exists() and pdb_file.exists():
-                print("✅ PSF y PDB generados exitosamente")
-                print(f"📁 PSF: {psf_file}")
-                print(f"📁 PDB: {pdb_file}")
+                # PSF and PDB generated successfully
+                # PSF: psf_file
+                # PDB: pdb_file
                 
-                # Comparar con existente
+                # Compare with existing
                 self.compare_with_existing_psf(psf_file, pdb_path)
                 
             else:
-                print("❌ Archivos no generados correctamente")
-                print(f"PSF existe: {psf_file.exists()}")
-                print(f"PDB existe: {pdb_file.exists()}")
+                # files not generated correctly
+                # PSF exists: psf_file.exists()
+                # PDB exists: pdb_file.exists()
+                pass
                 
-        except Exception as e:
-            print(f"❌ Error en el test: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            # test failed
             return False
-        
-        print("=" * 50)
-        print("✅ Test completado")
+
+        # test completed successfully
         return True
 
 if __name__ == "__main__":

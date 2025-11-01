@@ -7,7 +7,7 @@ from src.application.use_cases.build_protein_graph import (
     BuildProteinGraphInput,
 )
 from src.infrastructure.graphein.graphein_graph_adapter import GrapheinGraphAdapter
-from src.infrastructure.graphein.graph_visualizer_adapter import PlotlyGraphVisualizerAdapter
+from src.infrastructure.graphein.graph_visualizer_adapter import MolstarGraphVisualizerAdapter
 from src.infrastructure.pdb.pdb_preprocessor_adapter import PDBPreprocessorAdapter
 from src.infrastructure.fs.temp_file_service import TempFileService
 from src.interfaces.http.flask.presenters.graph_presenter import GraphPresenter
@@ -30,7 +30,7 @@ _db = SqliteMetadataRepository(db_path=getattr(_CFG, 'db_path', 'database/toxins
 _graph = GrapheinGraphAdapter()
 _pdb = PDBPreprocessorAdapter(pdb_dir=getattr(_CFG, 'pdb_dir', None), psf_dir=getattr(_CFG, 'psf_dir', None))
 _tmp = TempFileService()
-_viz = PlotlyGraphVisualizerAdapter()
+_viz = MolstarGraphVisualizerAdapter()
 _build_graph_uc = None  # type: ignore[var-annotated]
 
 
@@ -40,7 +40,7 @@ def configure_graphs_dependencies(
     graph_adapter: GrapheinGraphAdapter = None,
     pdb_preprocessor: PDBPreprocessorAdapter = None,
     temp_files: TempFileService = None,
-    visualizer: PlotlyGraphVisualizerAdapter = None,
+    visualizer: MolstarGraphVisualizerAdapter = None,
     build_graph_uc: BuildProteinGraph = None,
 ):
     global _db, _graph, _pdb, _tmp, _viz, _build_graph_uc
@@ -135,12 +135,12 @@ def get_graph_v2(source: str, pid: int):
                 }
                 import json
                 return Response(json.dumps(minimal, ensure_ascii=False), mimetype='application/json')
-            # Build plotly visualization JSON
-            fig_json = _viz.create_complete_visualization(result["graph"], granularity, pid)
+            # Build WebGL-optimized visualization data (nodes + edges)
+            graph_data = _viz.create_complete_visualization(result["graph"], granularity, pid)
             payload = GraphPresenter.present(
                 properties=result["properties"],
                 meta={"source": source, "id": pid, "granularity": granularity},
-                fig_json=_viz.convert_numpy_to_lists(fig_json)
+                graph_data=_viz.convert_numpy_to_lists(graph_data)
             )
             # Optional: allow isolating sections to debug serialization
             if section == 'props':

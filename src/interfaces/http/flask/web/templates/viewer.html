@@ -25,6 +25,18 @@
     <!-- Estilos de Mol* (deferred con media=print) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css" media="print" onload="this.onload=null;this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css"></noscript>
+    
+    <!-- Spinner animation for graph loading -->
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #graph-plot {
+            position: relative;
+            min-height: 500px;
+        }
+    </style>
 </head>
 <body class="viewer-page">
     <!-- NAVBAR -->
@@ -218,6 +230,21 @@
                     <div class="loading-state" id="graph-loading" style="display: none;">
                         <div class="spinner"></div>
                         <p class="loading-text">Generando grafo molecular...</p>
+                    </div>
+                </div>
+
+                <!-- Panel de información de nodos (blanco, debajo del gráfico) -->
+                <div id="graph-info-panel" style="
+                    background: #f8f9fa;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 16px;
+                    margin-top: 12px;
+                    min-height: 60px;
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                ">
+                    <div style="color: #666; font-size: 13px; text-align: center;">
+                        Pasa el cursor sobre un nodo para ver sus conexiones
                     </div>
                 </div>
             </div>
@@ -611,11 +638,11 @@
     <!-- Mol* viewer library -->
     <script src="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.js" defer></script>
     
-    <!-- Plotly for graphs -->
-    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js" defer></script>
-    
     <!-- py3Dmol for molecular visualization -->
     <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
+    
+    <!-- WebGL Graph Renderer (replaces Plotly) -->
+    <script src="{{ url_for('static', filename=asset_path('js/molstar_graph_renderer.js')) }}" defer></script>
     
     <!-- Custom scripts con defer -->
     <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>

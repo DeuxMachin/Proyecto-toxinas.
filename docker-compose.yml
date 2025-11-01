@@ -27,12 +27,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-    logging:
+   logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - default
+      - web
 
+networks:
+  web:
+    external: true
 volumes:
   toxinas_db:
   toxinas_pdbs:

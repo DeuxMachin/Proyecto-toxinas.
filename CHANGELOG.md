@@ -2,6 +2,120 @@
 Todas las modificaciones significativas del proyecto se documentan aquí.  
 El historial se organiza en "versiones" retrospectivas según hitos de desarrollo.
 
+## [2.5.6] – 2025-11-01
+
+### Added
+
+- Sistema dual de interacción CLICK/HOVER para nodos:
+  - **CLICK**: Selecciona el nodo (color rojo/magenta), actualiza panel inferior y resalta sus conexiones en rojo.
+  - **MOUSE HOVER**: Resalta nodo en amarillo/naranja y sus conexiones sin cambiar el panel de información.
+  - Ambos estados pueden coexistir: permite explorar vecinos mientras se mantiene la información del nodo seleccionado.
+
+### Changed
+
+- Renderizado de nodos mejorado con diferenciación visual clara:
+  - Nodos seleccionados (CLICK): Rojo/Magenta brillante + borde blanco grueso (3.5px) + tamaño 60% mayor.
+  - Nodos hovados (MOUSE): Amarillo/Naranja brillante + borde blanco (3.0px) + tamaño 40% mayor.
+
+- Comportamiento mejorado del resetView():
+  - Limpia tanto la selección como el hover al hacer doble-click.
+  - Restaura el panel inferior al estado inicial.
+
+### Technical Details
+
+
+- Arquitectura:
+  - Separación limpia entre lógica de hover (visual) y selección (actualización de datos).
+  - Sin dependencias nuevas; solo manipulación de canvas 2D y DOM estándar.
+
+### Fixed
+
+- Problema de z-index: panel flotante ya no se pierde detrás del canvas.
+- Hover desaparece al inicio: ahora es estrictamente visual y siempre responde.
+- Panel de conexiones limitado a 15: ahora muestra TODAS las conexiones en grid responsive.
+
+---
+
+## [2.5.5] – 2025-10-31
+
+### Added
+
+- Migración completa de Plotly a Mol* WebGL para visualización 3D de grafos, optimizando rendimiento para grafos grandes (600+ nodos, 10-20K aristas).
+- Nuevo renderizador WebGL optimizado para grafos con controles interactivos (zoom, rotación, hover tooltips).
+
+
+### Changed
+
+- Reemplazo del adaptador PlotlyGraphVisualizerAdapter por MolstarGraphVisualizerAdapter para generación de datos ligeros compatibles con WebGL.
+- Mejora significativa en rendimiento: reducción del 94% en tiempo de renderizado (de ~5s a <500ms) y del 94% en tamaño de payload.
+- Visualización enfocada únicamente en nodos y aristas, manteniendo precisión PDB y cálculos de métricas.
+- Fondo mejorado con gradiente y eliminación de ejes para mayor claridad.
+
+### Technical Details
+
+- Backend:
+  - `graph_visualizer_adapter.py`: Nuevo adaptador MolstarGraphVisualizerAdapter con métodos para extracción de posiciones 3D y serialización de datos ligeros.
+  - `graphs_controller.py`: Actualización de imports y uso del nuevo adaptador.
+  - `graph_presenter.py`: Simplificación para formato WebGL, eliminación de datos Plotly.
+  - `app.py`: Actualización de import del adaptador.
+- Frontend:
+  - `molstar_graph_renderer.js`: Nuevo renderizador WebGL con proyección 3D-2D, controles de cámara, tooltips y renderizado optimizado.
+  - `graph_viewer.js`: Eliminación de código Plotly, integración del nuevo renderizador.
+  - `viewer.html`: Remoción de script Plotly, agregado del nuevo script de renderizador.
+- Arquitectura: Patrón adaptador para facilitar cambios tecnológicos; uso de Canvas2D para renderizado eficiente.
+
+---
+
+## [2.5.4] – 2025-10-30
+
+
+### Added
+- Tarjeta fija “Gráficos” siempre visible en la página de filtros con dos visualizaciones:
+  - IC50 (puntos, eje Y log(nM)) para todos los péptidos con IC50 (BD y/o IA).
+  - Δori (°) únicamente para accesiones sin IC50.
+- Actualización automática de ambos gráficos al cambiar filtros, referencia y paginación.
+
+### Changed
+- El gráfico IC50 pasa a renderizarse sin botón, siempre presente; las etiquetas del eje X ahora muestran “ACCESSION (ori=…°)”.
+- El nuevo gráfico de Δori usa en el eje X solo el ACCESSION (sin “(ori=…)”) y en el eje Y el Δori en grados.
+
+### Removed
+- Botón “Gráfico IC50 (puntos)” y su contenedor dinámico.
+
+### Technical Details
+- Frontend (motif_dipoles.js):
+  - Nuevas funciones: buildLabelWithOri, renderIc50ScatterAllFixed, renderOriNoIc50Chart y updateChartsWithAllItems.
+  - Hooks a eventos existentes: onReferenceChanged, applyFiltersAndRender y onPaginationChange para refrescar gráficos.
+  - IC50: usa campos normalizados a nM (nav1_7_ic50_value_nm y ai_ic50_*_nm); AI con barras de error (min/max) y punto central (avg o value).
+  - Δori: usa orientation_score_deg del backend o cálculo cliente como fallback; eje Y lineal [0, 180].
+  - Manejo seguro de instancias (destroy/recreate) para evitar duplicados y fugas.
+- HTML (toxin_filter.html):
+  - Nueva tarjeta “Gráficos” con contenedores fijos: ic50-scatter-all y ori-no-ic50-chart.
+
+---
+
+## [2.5.3] – 2025-10-30
+
+### Changed
+
+- Optimización integral del código eliminando redundancias en módulos de cálculo de grafos:
+  - Creación del módulo común `graph_metrics.py` con funciones centralizadas para cálculo de métricas de grafo, estadísticas de centralidad y top residuos.
+  - Refactorización de `graph_analysis2D.py`, `graphein_graph_adapter.py` y `graph_presenter.py` para usar el módulo común y eliminar código duplicado.
+  - Implementación de lazy imports en `graph_metrics.py` para evitar dependencias circulares y mejorar rendimiento.
+
+### Fixed
+
+- Eliminación completa de logs innecesarios en producción:
+  - Remoción de `print()` statements en archivos Python (`graph_analysis2D.py`, archivos de test en `tools/`) dejando solo logs de tiempo en `run_full_pipeline.py`.
+  - Eliminación de `console.log()` en JavaScript (`graph_viewer.js`) para limpiar la consola del navegador.
+- Corrección de errores de sintaxis en `test_psf_generation.py` causados por indentación incorrecta de comentarios.
+
+### Technical Details
+
+- Arquitectura: Separación de responsabilidades entre construcción de grafos, cálculo de métricas y presentación; uso de lazy imports para compatibilidad con NetworkX y NumPy.
+- Rendimiento: Reducción significativa de código duplicado y mejora en mantenibilidad del sistema de análisis de grafos.
+- Calidad: Limpieza de código de producción eliminando outputs de debug que afectaban la experiencia del usuario.
+
 ## [2.5.2] – 2025-10-29
 ### Added
 - Overlay de carga con spinner al cambiar de pestaña IC50 (“Todos / Con IC50 / Sin IC50”) y al cambiar de página en el visualizador.

@@ -199,8 +199,7 @@ async function initializeViewerPage() {
 
     // Función para mostrar información del dipolo - simplificada
     function displayDipoleInfo(dipoleData) {
-        // Ya no necesitamos mostrar la información aquí porque se maneja en el panel de análisis
-        console.log('Dipole data received:', dipoleData);
+  
     }
 
     // Función para actualizar el estado del dipolo

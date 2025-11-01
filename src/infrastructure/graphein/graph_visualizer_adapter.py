@@ -1,179 +1,130 @@
-from typing import Any, Dict, Tuple
+﻿from typing import Any, Dict, List, Tuple
 import networkx as nx
 
 
-class PlotlyGraphVisualizerAdapter:
-    """Adapter to produce minimal Plotly-like JSON without legacy dependency."""
+class MolstarGraphVisualizerAdapter:
+    """
+    WebGL-optimized adapter for Mol* graph rendering.
+    Generates minimal node/edge data instead of heavy Plotly traces.
+    Reduces payload size and enables sub-second rendering for dense graphs.
+    """
 
     @staticmethod
     def create_complete_visualization(G: Any, granularity: str, protein_id: int) -> Dict[str, Any]:
+        """
+        Creates a lightweight graph visualization data structure optimized for WebGL rendering.
+        
+        Args:
+            G: NetworkX graph with 3D node positions
+            granularity: 'atom' or 'CA' 
+            protein_id: Protein identifier
+            
+        Returns:
+            Dict with nodes (coords + labels) and edges (pairs of node indices)
+        """
         if not isinstance(G, nx.Graph):
             raise TypeError("Expected a networkx.Graph")
 
-        # Try to get true 3D coordinates from node attributes ('pos' set by analyzer)
-        def _get_pos(g: nx.Graph) -> Dict[Any, Tuple[float, float, float]]:
-            attrs = nx.get_node_attributes(g, "pos")
-            if attrs and all(isinstance(v, (list, tuple)) and len(v) == 3 for v in attrs.values()):
-                return attrs
-            # Fallback to a 3D spring layout if no coordinates are available
-            layout3d = nx.spring_layout(g, seed=42, dim=3)
-            return layout3d
-
-        # If this graph comes from Graphein, try its native plotly builder for parity with legacy
-        try:
-            from graphein.protein.visualisation import plotly_protein_structure_graph
-            # Title in Spanish, matching legacy
-            plot_title = f"Grafo de Átomos (ID: {protein_id})" if str(granularity).lower() == "atom" else f"Grafo de CA (ID: {protein_id})"
-            # Use legacy-like styling parameters from Graphein
-            fig = plotly_protein_structure_graph(
-                G,
-                colour_nodes_by="seq_position",
-                colour_edges_by="kind",
-                label_node_ids=False,
-                node_size_multiplier=0,
-                plot_title=plot_title,
-            )
-
-            # Configure layout akin to legacy GraphVisualizer.configure_plot_layout
-            fig.update_layout(
-                scene=dict(
-                    xaxis=dict(
-                        title="X",
-                        showgrid=True,
-                        zeroline=True,
-                        backgroundcolor="rgba(240,240,240,0.9)",
-                        showbackground=True,
-                        gridcolor="lightgray",
-                        showticklabels=True,
-                        tickfont=dict(size=10),
-                    ),
-                    yaxis=dict(
-                        title="Y",
-                        showgrid=True,
-                        zeroline=True,
-                        backgroundcolor="rgba(240,240,240,0.9)",
-                        showbackground=True,
-                        gridcolor="lightgray",
-                        showticklabels=True,
-                        tickfont=dict(size=10),
-                    ),
-                    zaxis=dict(
-                        title="Z",
-                        showgrid=True,
-                        zeroline=True,
-                        backgroundcolor="rgba(240,240,240,0.9)",
-                        showbackground=True,
-                        gridcolor="lightgray",
-                        showticklabels=True,
-                        tickfont=dict(size=10),
-                    ),
-                    aspectmode="data",
-                    bgcolor="white",
-                ),
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                showlegend=True,
-                legend=dict(x=0.85, y=0.9, bgcolor="rgba(255,255,255,0.5)", bordercolor="black", borderwidth=1),
-            )
-            # Style traces to match legacy names and widths/opacities
-            fig.update_traces(marker=dict(opacity=0.9), selector=dict(mode="markers"))
-            fig.update_traces(line=dict(width=2), selector=dict(mode="lines"))
-            for tr in list(fig.data or []):
-                try:
-                    if getattr(tr, "mode", None) == "markers":
-                        tr.name = "Átomos" if str(granularity).lower() == "atom" else "Residuos"
-                    elif getattr(tr, "mode", None) == "lines":
-                        tr.name = "Conexiones"
-                except Exception:
-                    pass
-
-            # Convert Plotly Figure to JSON-like dict for client
-            fig_dict = fig.to_plotly_json()
-            # Normalize numpy arrays/scalars to lists/primitives for JSON serialization
-            import numpy as np
-            def normalize(obj):
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                if isinstance(obj, (np.floating, np.integer, np.bool_)):
-                    try:
-                        return obj.item()
-                    except Exception:
-                        return bool(obj)
-                if isinstance(obj, (list, tuple)):
-                    return [normalize(x) for x in obj]
-                if isinstance(obj, dict):
-                    return {k: normalize(v) for k, v in obj.items()}
-                return obj
-            fig_dict = normalize(fig_dict)
-            return {"data": fig_dict.get("data", []), "layout": fig_dict.get("layout", {})}
-        except Exception:
-            pass
-
-        # Fallback: build our own 3D scatter from node positions
-        pos3d = _get_pos(G)
-        x_nodes = [float(pos3d[n][0]) for n in G.nodes()]
-        y_nodes = [float(pos3d[n][1]) for n in G.nodes()]
-        z_nodes = [float(pos3d[n][2]) for n in G.nodes()]
-
-        edge_x, edge_y, edge_z = [], [], []
+        # Extract 3D positions from node attributes
+        pos3d = MolstarGraphVisualizerAdapter._get_positions(G)
+        
+        # Build node data with coordinates and labels
+        nodes = []
+        node_to_index = {}
+        
+        for idx, node in enumerate(G.nodes()):
+            x, y, z = pos3d[node]
+            label = str(node)
+            
+            # Try to extract structured label (chain:residue:position)
+            try:
+                node_data = G.nodes[node]
+                if 'residue_name' in node_data and 'residue_number' in node_data:
+                    res_name = node_data.get('residue_name', '')
+                    res_num = node_data.get('residue_number', '')
+                    chain = node_data.get('chain_id', 'A')
+                    label = f"{chain}:{res_name}:{res_num}"
+            except Exception:
+                pass
+            
+            nodes.append({
+                'x': float(x),
+                'y': float(y), 
+                'z': float(z),
+                'label': label
+            })
+            node_to_index[node] = idx
+        
+        # Build edge data: pairs of node indices
+        edges = []
         for u, v in G.edges():
-            edge_x += [float(pos3d[u][0]), float(pos3d[v][0]), None]
-            edge_y += [float(pos3d[u][1]), float(pos3d[v][1]), None]
-            edge_z += [float(pos3d[u][2]), float(pos3d[v][2]), None]
-
-        data = [
-            {"type": "scatter3d", "x": edge_x, "y": edge_y, "z": edge_z, "mode": "lines", "line": {"width": 2, "color": "#b0b0b0"}, "hoverinfo": "none", "name": "edges", "showlegend": False},
-            {"type": "scatter3d", "x": x_nodes, "y": y_nodes, "z": z_nodes, "mode": "markers", "marker": {"size": 3, "color": "#1f77b4", "opacity": 0.9}, "text": [str(n) for n in G.nodes()], "hoverinfo": "text", "name": "nodes", "showlegend": False},
-        ]
-        # Legacy-like Spanish title and visible axes with grid
-        layout = {
-            "title": (f"Grafo de Átomos (ID: {protein_id})" if str(granularity).lower() == "atom" else f"Grafo de CA (ID: {protein_id})"),
-            "scene": {
-                "xaxis": {"title": "X", "showgrid": True, "zeroline": True, "backgroundcolor": "rgba(240,240,240,0.9)", "showbackground": True, "gridcolor": "lightgray", "showticklabels": True, "tickfont": {"size": 10}},
-                "yaxis": {"title": "Y", "showgrid": True, "zeroline": True, "backgroundcolor": "rgba(240,240,240,0.9)", "showbackground": True, "gridcolor": "lightgray", "showticklabels": True, "tickfont": {"size": 10}},
-                "zaxis": {"title": "Z", "showgrid": True, "zeroline": True, "backgroundcolor": "rgba(240,240,240,0.9)", "showbackground": True, "gridcolor": "lightgray", "showticklabels": True, "tickfont": {"size": 10}},
-                "aspectmode": "data",
-                "bgcolor": "white",
-            },
-            "paper_bgcolor": "white",
-            "plot_bgcolor": "white",
-            "showlegend": True,
-            "legend": {"x": 0.85, "y": 0.9, "bgcolor": "rgba(255,255,255,0.5)", "bordercolor": "black", "borderwidth": 1},
-            "margin": {"l": 0, "r": 0, "t": 30, "b": 0},
-            "hovermode": "closest",
+            if u in node_to_index and v in node_to_index:
+                edges.append([node_to_index[u], node_to_index[v]])
+        
+        # Compute bounding box for camera setup
+        if nodes:
+            xs = [n['x'] for n in nodes]
+            ys = [n['y'] for n in nodes]
+            zs = [n['z'] for n in nodes]
+            bbox = {
+                'min': [min(xs), min(ys), min(zs)],
+                'max': [max(xs), max(ys), max(zs)],
+                'center': [
+                    sum(xs) / len(xs),
+                    sum(ys) / len(ys),
+                    sum(zs) / len(zs)
+                ]
+            }
+        else:
+            bbox = {'min': [0, 0, 0], 'max': [0, 0, 0], 'center': [0, 0, 0]}
+        
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'metadata': {
+                'protein_id': protein_id,
+                'granularity': granularity,
+                'node_count': len(nodes),
+                'edge_count': len(edges),
+                'bbox': bbox
+            }
         }
-        try:
-            import numpy as np
-            def normalize(obj):
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                if isinstance(obj, (list, tuple)):
-                    return [normalize(x) for x in obj]
-                if isinstance(obj, dict):
-                    return {k: normalize(v) for k, v in obj.items()}
-                if isinstance(obj, (np.floating, np.integer)):
-                    return obj.item()
-                return obj
-            return {"data": normalize(data), "layout": normalize(layout)}
-        except Exception:
-            return {"data": data, "layout": layout}
+
+    @staticmethod
+    def _get_positions(G: nx.Graph) -> Dict[Any, Tuple[float, float, float]]:
+        """
+        Extracts or generates 3D positions for graph nodes.
+        Prefers real PDB coordinates from 'pos' attribute.
+        """
+        # Try to get positions from node attributes (set by graph builder)
+        pos_attr = nx.get_node_attributes(G, "pos")
+        
+        if pos_attr and all(isinstance(v, (list, tuple)) and len(v) == 3 for v in pos_attr.values()):
+            return pos_attr
+        
+        # Fallback: 3D spring layout if no coordinates available
+        return nx.spring_layout(G, seed=42, dim=3)
 
     @staticmethod
     def convert_numpy_to_lists(obj):
+        """
+        Recursively converts numpy arrays/scalars to native Python types.
+        Ensures JSON serializability.
+        """
         try:
-            import numpy as np  # type: ignore
-        except Exception:
-            np = None  # type: ignore
+            import numpy as np
+        except ImportError:
+            return obj
 
-        if np is not None and isinstance(obj, np.ndarray):
+        if isinstance(obj, np.ndarray):
             return obj.tolist()
-        if np is not None and isinstance(obj, (getattr(np, 'floating', ()), getattr(np, 'integer', ()), getattr(np, 'bool_', ()))):
+        if isinstance(obj, (np.floating, np.integer, np.bool_)):
             try:
                 return obj.item()
             except Exception:
-                return bool(obj)
+                return bool(obj) if isinstance(obj, np.bool_) else float(obj)
         if isinstance(obj, dict):
-            return {k: PlotlyGraphVisualizerAdapter.convert_numpy_to_lists(v) for k, v in obj.items()}
+            return {k: MolstarGraphVisualizerAdapter.convert_numpy_to_lists(v) for k, v in obj.items()}
         if isinstance(obj, (list, tuple)):
-            return [PlotlyGraphVisualizerAdapter.convert_numpy_to_lists(x) for x in obj]
+            return [MolstarGraphVisualizerAdapter.convert_numpy_to_lists(x) for x in obj]
         return obj
