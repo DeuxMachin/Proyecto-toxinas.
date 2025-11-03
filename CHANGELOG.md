@@ -1,3 +1,13 @@
+## [2.5.8] – 2025-11-03
+
+### Fixed
+- Sincronización del toggle de granularidad en el visualizador de grafos: implementación de estado visual consistente entre el slider CSS y el checkbox JavaScript.
+- Agregado event listener para clics en el wrapper visual del toggle (`#granularity-toggle-wrapper`) que actualiza el estado del checkbox oculto y dispara la actualización del grafo.
+- Función `syncGranularityToggleVisual()` para mantener la clase CSS `active` sincronizada con el estado del checkbox, controlando la posición del slider (izquierda para 'Atómico', derecha para 'Carbono Alfa').
+
+
+---
+
 ## [2.5.7] – 2025-11-03
 
 ### Added
