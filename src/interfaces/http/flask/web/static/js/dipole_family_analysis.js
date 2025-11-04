@@ -19,7 +19,9 @@ class DipoleFamilyAnalyzer {
         this.peptideList = document.getElementById('peptideList');
         this.visualizationGrid = document.getElementById('visualizationGrid');
         
-        this.currentFamilyData = null;
+    this.currentFamilyData = null;
+    // Cache por familia para restaurar estado (datos y resaltados)
+    this.familyCache = {}; // { [familyName]: { dipoleData, highlights: Set<string> } }
         this.cardIndexByCode = {}; // mapa peptide_code -> índice de tarjeta
         this.visualizationReady = false;
         
@@ -101,6 +103,34 @@ class DipoleFamilyAnalyzer {
             // Cargar péptidos de la familia
             await this.loadFamilyPeptides(selectedFamily);
             
+            // Si la familia ya fue visualizada antes, restaurar su estado
+            const cached = this.familyCache[selectedFamily];
+            if (cached && cached.dipoleData && Array.isArray(cached.dipoleData.dipole_results)) {
+                this.currentFamilyData = cached.dipoleData;
+                this.createDipoleGrid(cached.dipoleData.dipole_results);
+                this.visualizationArea.style.display = 'block';
+                if (this.statisticsArea) {
+                    this.statisticsArea.style.display = 'none';
+                }
+                this.visualizationReady = true;
+                this.enableHighlightControls();
+                // Reaplicar resaltados guardados
+                if (cached.highlights && cached.highlights.size) {
+                    cached.highlights.forEach(code => {
+                        this.toggleCardHighlight(code, true);
+                        // Sincronizar checkbox si existe
+                        const inputs = this.peptideList.querySelectorAll('.highlight-toggle');
+                        inputs.forEach(inp => {
+                            if (inp.dataset.peptideCode === code) inp.checked = true;
+                        });
+                    });
+                }
+                // Como ya hay visualización, ocultar el hint
+                if (this.familyHint) {
+                    this.familyHint.style.display = 'none';
+                }
+            }
+            
             // Solo habilitar el botón de visualización
             this.visualizeFamilyBtn.disabled = false;
             
@@ -175,6 +205,10 @@ class DipoleFamilyAnalyzer {
             `;
             
             all_peptides.forEach(peptide => {
+                const mods = this.parseModificationsFromCode(peptide.peptide_code);
+                const highlightedSeq = (mods && mods.length)
+                    ? this.highlightSequence(peptide.sequence, mods)
+                    : (peptide.sequence || '');
                 listHTML += `
                     <tr>
                         <td>
@@ -182,7 +216,7 @@ class DipoleFamilyAnalyzer {
                         </td>
                         <td>
                             <div class="sequence-container">
-                                <code class="sequence-text-readonly">${peptide.sequence}</code>
+                                <code class="sequence-text-readonly">${highlightedSeq}</code>
                             </div>
                         </td>
                         <td>
@@ -342,6 +376,8 @@ class DipoleFamilyAnalyzer {
         if (this.visualizationReady) {
             this.enableHighlightControls();
         }
+        // Permitir que un clic en la secuencia dispare el resaltado correspondiente
+        this.attachSequenceToggleHandlers();
     }
 
     // ✨ NUEVO: Método para encontrar diferencias entre secuencias
@@ -477,6 +513,8 @@ class DipoleFamilyAnalyzer {
 
                 this.currentFamilyData = data.data;
                 this.createDipoleGrid(data.data.dipole_results);
+                // Cachear datos de la familia y estado de resaltado
+                this.cacheFamilyVisualization(selectedFamily, data.data);
                 
                 // Mostrar área de visualización (estadísticas eliminadas)
                 this.visualizationArea.style.display = 'block';
@@ -501,6 +539,23 @@ class DipoleFamilyAnalyzer {
         } finally {
             this.showLoading(false);
         }
+    }
+
+    cacheFamilyVisualization(familyName, dipoleData) {
+        const highlights = this.getCurrentHighlights();
+        this.familyCache[familyName] = {
+            dipoleData,
+            highlights
+        };
+    }
+
+    getCurrentHighlights() {
+        const set = new Set();
+        const toggles = this.peptideList ? this.peptideList.querySelectorAll('.highlight-toggle') : [];
+        toggles.forEach(inp => {
+            if (inp.checked && inp.dataset.peptideCode) set.add(inp.dataset.peptideCode);
+        });
+        return set;
     }
 
     scrollToVisualization() {
@@ -601,14 +656,25 @@ class DipoleFamilyAnalyzer {
         const dipoleVisualization = document.getElementById('dipoleVisualization');
         const visualizationGrid = document.getElementById('visualizationGrid');
         
-        // Limpiar el área de carga
-        dipoleVisualization.innerHTML = '';
+    // Reemplazar el área superior por una leyenda compacta
+    dipoleVisualization.innerHTML = this.buildLegendHTML();
         
         // Insertar grid en visualizationGrid
         visualizationGrid.innerHTML = gridHTML;
 
         // Inicializar visualizadores py3Dmol para cada toxina
         this.initializeDipoleViewers(dipoleResults);
+    }
+
+    buildLegendHTML() {
+        return `
+            <div class="dipole-legend" role="note" aria-label="Leyenda de colores de flechas">
+                <span class="legend-item"><span class="legend-swatch" style="--legend-color: red"></span> Dipolo</span>
+                <span class="legend-item"><span class="legend-swatch" style="--legend-color: green"></span> Eje X</span>
+                <span class="legend-item"><span class="legend-swatch" style="--legend-color: orange"></span> Eje Y</span>
+                <span class="legend-item"><span class="legend-swatch" style="--legend-color: blue"></span> Eje Z</span>
+            </div>
+        `;
     }
 
     // Mostrar columna "Resaltar" y enlazar eventos
@@ -622,6 +688,14 @@ class DipoleFamilyAnalyzer {
             const code = e.target.dataset.peptideCode;
             const on = e.target.checked;
             this.toggleCardHighlight(code, on);
+            // Actualizar cache de resaltados para la familia actual
+            const fname = this.familySelector.value;
+            if (!this.familyCache[fname]) this.familyCache[fname] = { dipoleData: this.currentFamilyData, highlights: new Set() };
+            if (on) {
+                this.familyCache[fname].highlights.add(code);
+            } else {
+                this.familyCache[fname].highlights.delete(code);
+            }
         };
         toggles.forEach(input => input.addEventListener('change', this._onHighlightToggle));
     }
@@ -640,6 +714,49 @@ class DipoleFamilyAnalyzer {
         if (!card) return;
         card.classList.toggle('highlighted-card', !!on);
         // No auto-scroll al activar, para permitir seleccionar múltiples a la vez
+    }
+
+    // Permite hacer clic en la secuencia para alternar el resaltado de su visualización
+    attachSequenceToggleHandlers() {
+        // Limpia handler previo si existiese para evitar duplicados
+        if (this._sequenceClickHandler) {
+            this.peptideList.removeEventListener('click', this._sequenceClickHandler);
+        }
+        this._sequenceClickHandler = (e) => {
+            const target = e.target;
+            // Solo reaccionar si se hace clic dentro de la celda de secuencia
+            if (!(target.closest('.sequence-container') || target.closest('.sequence-text-readonly'))) return;
+            const row = target.closest('tr');
+            if (!row) return;
+            const codeEl = row.querySelector('.peptide-code');
+            const peptideCode = codeEl ? codeEl.textContent.trim() : null;
+            if (!peptideCode) return;
+            const checkbox = row.querySelector('.highlight-toggle');
+            // Si aún no se ha generado la visualización, no hay nada que resaltar
+            if (!this.visualizationReady) return;
+            // Asegurar columna visible tras visualizar
+            this.setHighlightControlsVisible(true);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                // Disparar el evento change para mantener cache sincronizada
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                this.toggleCardHighlight(peptideCode, checkbox.checked);
+            } else {
+                // Fallback: alternar por código aunque no exista checkbox en la fila
+                const cards = Array.from(document.querySelectorAll('.dipole-visualization-card'));
+                const card = cards.find(c => (c.dataset.peptideCode||'') === peptideCode);
+                if (card) {
+                    const newState = !card.classList.contains('highlighted-card');
+                    this.toggleCardHighlight(peptideCode, newState);
+                    // Actualizar cache manualmente si no hay checkbox
+                    const fname = this.familySelector.value;
+                    if (!this.familyCache[fname]) this.familyCache[fname] = { dipoleData: this.currentFamilyData, highlights: new Set() };
+                    if (newState) this.familyCache[fname].highlights.add(peptideCode);
+                    else this.familyCache[fname].highlights.delete(peptideCode);
+                }
+            }
+        };
+        this.peptideList.addEventListener('click', this._sequenceClickHandler);
     }
 
     async initializeDipoleViewers(dipoleResults) {
