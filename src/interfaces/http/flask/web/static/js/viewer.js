@@ -378,6 +378,50 @@ async function initializeViewerPage() {
             }
         });
     }
+
+    // Residue search functionality
+    const searchResidueBtn = document.getElementById('search-residue-btn');
+    if (searchResidueBtn) {
+        searchResidueBtn.addEventListener('click', async () => {
+            const chain = document.getElementById('chain-input').value.trim().toUpperCase();
+            const aa = document.getElementById('aa-input').value.trim().toUpperCase();
+            const pos = document.getElementById('pos-input').value.trim();
+            const atom = document.getElementById('atom-input').value.trim().toUpperCase();
+
+            // Validate inputs
+            if (!chain || !aa || !pos || !atom) {
+                alert('Todos los campos son obligatorios: Cadena, Aminoácido, Posición y Átomo');
+                return;
+            }
+
+            if (chain.length !== 1) {
+                alert('La cadena debe ser un solo carácter');
+                return;
+            }
+
+            const posNum = parseInt(pos);
+            if (isNaN(posNum) || posNum <= 0) {
+                alert('La posición debe ser un número positivo');
+                return;
+            }
+
+            try {
+                // Select residue in graph (case-insensitive)
+                const success = await window.molstarAnalyzer.selectResidue(chain, aa, posNum, atom);
+                
+                if (success) {
+                    const residueId = `${chain}:${aa}:${pos}:${atom}`;
+                    console.log(`✓ Residuo seleccionado: ${residueId}`);
+                } else {
+                    throw new Error('No se pudo encontrar el residuo en el grafo');
+                }
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+                console.error('Residue search error:', error);
+            }
+        });
+    }
 }
 
 if (document.readyState === "loading") {

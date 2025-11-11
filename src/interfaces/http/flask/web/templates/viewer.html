@@ -228,6 +228,27 @@
                                 <input type="checkbox" id="granularity-toggle" checked style="display: none;" aria-label="Cambiar granularidad entre residuo y atómico">
                             </div>
                         </div>
+
+                        <div class="control-group">
+                            <label class="control-label">
+                                <i class="fas fa-search control-icon"></i>
+                                Buscar Residuo
+                                <span class="help-tooltip" title="Formato: Cadena:Aminoácido:Posición:Átomo. Ejemplo: P:ASN:19:HD22"><i class="fas fa-question-circle"></i></span>
+                            </label>
+                            <div class="residue-search-container">
+                                <input type="text" id="chain-input" class="residue-input" placeholder="C" maxlength="1" required title="Letra de la cadena">
+                                <span class="residue-separator">:</span>
+                                <input type="text" id="aa-input" class="residue-input" placeholder="ASN" maxlength="3" required title="Código de 3 letras del aminoácido">
+                                <span class="residue-separator">:</span>
+                                <input type="number" id="pos-input" class="residue-input" placeholder="19" min="1" required title="Número de posición en la secuencia">
+                                <span class="residue-separator">:</span>
+                                <input type="text" id="atom-input" class="residue-input" placeholder="HD22" required title="Nombre del átomo">
+                                <button id="search-residue-btn" class="residue-search-btn" type="button">
+                                    <i class="fas fa-search"></i>
+                                    Buscar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 

@@ -182,7 +182,9 @@ class MolstarGraphRenderer {
                 this.render();
             } else {
                 // Check for hover over nodes (visual only, no panel update)
-                this.checkNodeHover(mouseX, mouseY);
+                if (this.graphData && this.projectedNodes) {
+                    this.checkNodeHover(mouseX, mouseY);
+                }
             }
         });
         
@@ -229,7 +231,6 @@ class MolstarGraphRenderer {
     checkNodeHover(mouseX, mouseY) {
         if (!this.graphData || !this.projectedNodes) {
             this.hoveredNode = null;
-            this.render();
             return;
         }
         
@@ -431,6 +432,101 @@ class MolstarGraphRenderer {
         this.updateInfoPanel(node, index);
         this.render();
     }
+
+    /**
+     * Selecciona un nodo utilizando identificadores de residuo
+     */
+    selectNodeByResidue(chain, aa, pos, atom) {
+        if (!this.graphData || !Array.isArray(this.graphData.nodes)) {
+            return false;
+        }
+
+        const normalize = (value) => (value || '').toString().trim().toUpperCase();
+        const parseLabel = (label) => {
+            const safeLabel = normalize(label);
+            const parts = safeLabel.split(':');
+            return {
+                chain: parts[0] || '',
+                aa: parts[1] || '',
+                pos: parts[2] || '',
+                atom: parts[3] || ''
+            };
+        };
+
+        const target = {
+            chain: normalize(chain),
+            aa: normalize(aa),
+            pos: normalize(pos),
+            atom: normalize(atom)
+        };
+
+        if (!target.chain || !target.aa || !target.pos) {
+            return false;
+        }
+
+        const exactMatches = [];
+        const atomPrefixMatches = [];
+        const residueOnlyMatches = [];
+
+        this.graphData.nodes.forEach((node, index) => {
+            const parsed = parseLabel(node?.label || node?.id || node?.name || '');
+
+            if (parsed.chain !== target.chain || parsed.aa !== target.aa || parsed.pos !== target.pos) {
+                return;
+            }
+
+            if (target.atom) {
+                if (parsed.atom === target.atom) {
+                    exactMatches.push(index);
+                    return;
+                }
+
+                if (parsed.atom && parsed.atom.startsWith(target.atom)) {
+                    atomPrefixMatches.push(index);
+                    return;
+                }
+
+                if (!parsed.atom) {
+                    residueOnlyMatches.push(index);
+                    return;
+                }
+            } else {
+                if (!parsed.atom) {
+                    exactMatches.push(index);
+                } else {
+                    atomPrefixMatches.push(index);
+                }
+            }
+        });
+
+        let foundIndex = -1;
+        if (exactMatches.length > 0) {
+            foundIndex = exactMatches[0];
+        } else if (atomPrefixMatches.length > 0) {
+            foundIndex = atomPrefixMatches[0];
+        } else if (!target.atom && residueOnlyMatches.length > 0) {
+            foundIndex = residueOnlyMatches[0];
+        }
+
+        if (foundIndex === -1 && target.atom) {
+            // Como último recurso, si no existe el átomo solicitado pero sí el residuo, seleccionamos el primero
+            if (residueOnlyMatches.length > 0) {
+                foundIndex = residueOnlyMatches[0];
+            }
+        }
+
+        if (foundIndex === -1) {
+            return false;
+        }
+
+        const node = this.graphData.nodes[foundIndex];
+        if (node && typeof node.x === 'number' && typeof node.y === 'number' && typeof node.z === 'number') {
+            this.camera.target = { x: node.x, y: node.y, z: node.z };
+        }
+
+        this.selectNodeByIndex(foundIndex);
+        return true;
+    }
     
     /**
      * Reset camera to initial view
@@ -578,10 +674,6 @@ class MolstarGraphRenderer {
      */
     render() {
         if (!this.graphData || !this.ctx) {
-            console.warn('Cannot render: graphData or ctx is null', {
-                hasGraphData: !!this.graphData,
-                hasCtx: !!this.ctx
-            });
             return;
         }
         
@@ -589,7 +681,6 @@ class MolstarGraphRenderer {
         const { nodes, edges } = this.graphData;
         
         if (!nodes || !edges) {
-            console.warn('Cannot render: nodes or edges missing');
             return;
         }
         

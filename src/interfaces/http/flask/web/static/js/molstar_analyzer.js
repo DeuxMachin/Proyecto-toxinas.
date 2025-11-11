@@ -753,6 +753,46 @@ Dirección: [${dipoleData.normalized.map(x => x.toFixed(2)).join(', ')}]`;
             toggleBtn.onclick = null; 
         }
     }
+
+    /**
+     * Selecciona un residuo específico en el grafo
+     */
+    async selectResidue(chain, aa, pos, atom) {
+        try {
+            const normalize = (value) => (value || '').toString().trim().toUpperCase();
+
+            const normalizedChain = normalize(chain);
+            const normalizedAa = normalize(aa);
+            const normalizedPos = normalize(pos);
+            const normalizedAtom = normalize(atom);
+
+            if (!normalizedChain || !normalizedAa || !normalizedPos) {
+                throw new Error('Parámetros de residuo inválidos');
+            }
+
+            if (!window.graphRenderer || typeof window.graphRenderer.selectNodeByResidue !== 'function') {
+                throw new Error('El grafo aún no está disponible');
+            }
+
+            const success = window.graphRenderer.selectNodeByResidue(
+                normalizedChain,
+                normalizedAa,
+                normalizedPos,
+                normalizedAtom
+            );
+
+            if (!success) {
+                throw new Error(`No se encontró el residuo ${normalizedChain}:${normalizedAa}:${normalizedPos}:${normalizedAtom} en el grafo`);
+            }
+
+            console.log(`✓ Nodo seleccionado en grafo: ${normalizedChain}:${normalizedAa}:${normalizedPos}:${normalizedAtom}`);
+            return true;
+
+        } catch (error) {
+            console.error('Error al seleccionar residuo:', error);
+            throw error;
+        }
+    }
 }
 
 
