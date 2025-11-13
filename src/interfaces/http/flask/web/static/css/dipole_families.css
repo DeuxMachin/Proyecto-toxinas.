@@ -329,6 +329,28 @@
     flex-shrink: 0;
 }
 
+/* ✅ Píldora de ayuda alineada a la derecha */
+.family-hint {
+    margin-left: auto;
+    background: #e8f1fe;
+    color: #1f3b66;
+    border: 1px solid #c9ddff;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.family-hint::before {
+    content: '\f05a'; /* fa-info-circle */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 0.9em;
+    color: #3b82f6;
+}
+
 @keyframes slideInDown {
     from {
         opacity: 0;
@@ -437,6 +459,24 @@
     color: #2c3e50;
 }
 
+/* ✅ Resaltado por modificación (posiciones 1-based) */
+.sequence-text-readonly .seq-change,
+.sequence-text .seq-change {
+    display: inline-block;
+    border: 2px solid var(--color-primary);
+    border-radius: 4px;
+    padding: 0 2px;
+    margin: 1px 1px;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.08);
+}
+
+.sequence-text-readonly .seq-change:hover,
+.sequence-text .seq-change:hover {
+    border-color: var(--color-primary-600);
+    background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
 /* ===== BADGES Y ELEMENTOS PEQUEÑOS ===== */
 .peptide-code {
     font-family: 'Courier New', monospace;
@@ -467,11 +507,11 @@
 }
 
 .dipole-visualization-area {
-    min-height: 200px;
+    min-height: 0; /* Evitar rectángulo gigante */
     position: relative;
-    background: #f8f9fa;
+    background: transparent; /* Sin fondo para no crear bloque vacío */
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .loading-state {
@@ -515,6 +555,35 @@
     margin: 0;
 }
 
+/* ✅ Leyenda compacta sobre los visualizadores */
+.dipole-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.dipole-legend .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #374151;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.dipole-legend .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--legend-color, #999);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+}
+
 /* ===== GRID DE VISUALIZACIONES ===== */
 .visualization-grid {
     display: grid;
@@ -540,6 +609,30 @@
     transform: translateY(-4px);
     box-shadow: 0 8px 25px rgba(0,0,0,0.15);
     border-color: #3498db;
+}
+
+/* ✅ Resaltado de tarjeta seleccionada desde la tabla (checkbox "Resaltar") */
+.dipole-visualization-card.highlighted-card {
+    border-color: var(--color-accent) !important; /* matches design palette */
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent), 0 10px 24px rgba(0,0,0,0.18);
+    position: relative;
+    transform: translateY(-2px);
+}
+
+.dipole-visualization-card.highlighted-card::after {
+    content: 'Resaltado';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    pointer-events: none;
 }
 
 .dipole-card-header {

@@ -7,49 +7,28 @@
     <title>Visualizador de Proteínas | Proyecto Toxinas</title>
     
     <!-- Preconexiones para optimizar carga -->
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
-    <!-- Prefetch para librerías externas de terceros - Caché de 7 días en CDN -->
-    <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.js">
-    <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     
-    <!-- Font Awesome - Async con fallback y font-display: optional -->
+    <!-- Font Awesome - Carga diferida para reducir bloqueo inicial -->
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-    <style>
-        /* Optimizar fuentes de terceros con font-metric-overrides para evitar layout shifts */
-        @font-face {
-            font-display: optional;
-            font-family: 'Font Awesome 6 Free';
-            font-stretch: normal;
-            font-style: normal;
-            font-weight: 900;
-            src: url('data:application/x-font-woff2;charset=utf-8;base64,') format('woff2');
-            size-adjust: 97%;
-            ascent-override: 100%;
-            descent-override: 20%;
-            line-gap-override: 0%;
-        }
-        
-        /* Fallback system fonts que no requieren descarga */
-        .fas, .fa-solid, [class^="fa-"] {
-            font-display: swap;
-        }
-    </style>
     
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/toxina.png') }}">
+
     <!-- Sistema de diseño (críticos) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/design-system.css')) }}" fetchpriority="high">
+
+    <!-- CSS secundarios -->
     <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/navbar.css')) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/accessibility.css')) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/components.css')) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename=asset_path('css/viewer-page.css')) }}">
+
+
     
-    <!-- Estilos de Mol* (deferred con media=print) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css" media="print" onload="this.onload=null;this.media='all'">
-    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css"></noscript>
+    <!-- Estilos de Mol* -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.css">
     
     <!-- Spinner animation for graph loading -->
     <style>
@@ -65,52 +44,13 @@
 </head>
 <body class="viewer-page">
     <!-- NAVBAR -->
-    <nav class="main-navbar">
-        <div class="navbar-container">
-            <a href="{{ url_for('pages_v2.home_page_v2') }}" class="navbar-brand">
-                <div class="navbar-logo"><i class="fas fa-dna"></i></div>
-                <span class="navbar-title">Proyecto Toxinas</span>
-            </a>
-            
-            <ul class="navbar-nav">
-                <li class="nav-item">
-                    <a href="{{ url_for('pages_v2.home_page_v2') }}" class="nav-link">
-                        <span class="nav-icon"><i class="fas fa-home"></i></span>
-                        <span>Inicio</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('pages_v2.viewer_page_v2') }}" class="nav-link active">
-                        <span class="nav-icon"><i class="fas fa-microscope"></i></span>
-                        <span>Visualizador</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('pages_v2.dipole_families_page_v2') }}" class="nav-link">
-                        <span class="nav-icon"><i class="fas fa-flask"></i></span>
-                        <span>Familias</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('toxin_filter.toxin_filter_page') }}" class="nav-link">
-                        <span class="nav-icon"><i class="fas fa-filter"></i></span>
-                        <span>Filtros</span>
-                    </a>
-                </li>
-            </ul>
-            
-            <div class="navbar-actions">
-                <button class="action-btn">
-                    <i class="fas fa-download"></i>
-                    <span>Exportar</span>
-                </button>
-            </div>
-            
-            <button class="navbar-toggle">
-                <i class="fas fa-bars"></i>
-            </button>
-        </div>
-    </nav>
+    {% set navbar_actions %}
+      <button class="action-btn">
+        <i class="fas fa-download"></i>
+        <span>Exportar</span>
+      </button>
+    {% endset %}
+    {% include 'partials/navbar.html' %}
 
     <!-- CONTENIDO PRINCIPAL -->
     <div class="viewer-container">
@@ -221,8 +161,7 @@
                         <div id="py3dmol-container" style="width: 100%; height: 100%;"></div>
                     </div>
                     
-                    <!-- Plotly viewer -->
-                    <div id="plotly-dipole-viewer" class="viewer-canvas"></div>
+                  
                     
                     <!-- Info overlay  -->
                     <div class="viewer-info-overlay top-left" title="Leyenda: Rojo = Dipolo, Azul = Estructura">
@@ -287,6 +226,27 @@
                                 </div>
                                 <span class="toggle-label">Carbono Alfa</span>
                                 <input type="checkbox" id="granularity-toggle" checked style="display: none;" aria-label="Cambiar granularidad entre residuo y atómico">
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <label class="control-label">
+                                <i class="fas fa-search control-icon"></i>
+                                Buscar Residuo
+                                <span class="help-tooltip" title="Formato: Cadena:Aminoácido:Posición:Átomo. Ejemplo: P:ASN:19:HD22"><i class="fas fa-question-circle"></i></span>
+                            </label>
+                            <div class="residue-search-container">
+                                <input type="text" id="chain-input" class="residue-input" placeholder="C" maxlength="1" required title="Letra de la cadena">
+                                <span class="residue-separator">:</span>
+                                <input type="text" id="aa-input" class="residue-input" placeholder="ASN" maxlength="3" required title="Código de 3 letras del aminoácido">
+                                <span class="residue-separator">:</span>
+                                <input type="number" id="pos-input" class="residue-input" placeholder="19" min="1" required title="Número de posición en la secuencia">
+                                <span class="residue-separator">:</span>
+                                <input type="text" id="atom-input" class="residue-input" placeholder="HD22" required title="Nombre del átomo">
+                                <button id="search-residue-btn" class="residue-search-btn" type="button">
+                                    <i class="fas fa-search"></i>
+                                    Buscar
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -529,23 +489,56 @@
                                     <i class="fas fa-ranking-star"></i>
                                     Top 5 residuos por métrica
                                 </h4>
+                                <p class="section-subtitle">Identifica residuos clave según su rol en la estructura molecular</p>
                             </div>
                             <div class="top-residues-grid-modern">
                                 <div class="top-metric-column">
-                                    <h5>Centralidad de grado</h5>
+                                    <div class="metric-column-header">
+                                        <i class="fas fa-diagram-project"></i>
+                                        <h5>Centralidad de grado</h5>
+                                    </div>
+                                    <p class="metric-column-hint">Residuos con más conexiones directas</p>
                                     <ul id="top-degree-list" class="residue-list"></ul>
                                 </div>
                                 <div class="top-metric-column">
-                                    <h5>Intermediación</h5>
+                                    <div class="metric-column-header">
+                                        <i class="fas fa-route"></i>
+                                        <h5>Intermediación</h5>
+                                    </div>
+                                    <p class="metric-column-hint">Puentes entre regiones estructurales</p>
                                     <ul id="top-between-list" class="residue-list"></ul>
                                 </div>
                                 <div class="top-metric-column">
-                                    <h5>Cercanía</h5>
+                                    <div class="metric-column-header">
+                                        <i class="fas fa-compass"></i>
+                                        <h5>Cercanía</h5>
+                                    </div>
+                                    <p class="metric-column-hint">Acceso rápido a otros residuos</p>
                                     <ul id="top-closeness-list" class="residue-list"></ul>
                                 </div>
                                 <div class="top-metric-column">
-                                    <h5>Agrupamiento</h5>
+                                    <div class="metric-column-header">
+                                        <i class="fas fa-share-nodes"></i>
+                                        <h5>Agrupamiento</h5>
+                                    </div>
+                                    <p class="metric-column-hint">Regiones de alta cohesión local</p>
                                     <ul id="top-clustering-list" class="residue-list"></ul>
+                                </div>
+                                <div class="top-metric-column">
+                                    <div class="metric-column-header">
+                                        <i class="fas fa-arrows-left-right"></i>
+                                        <h5>Distancia secuencial</h5>
+                                    </div>
+                                    <p class="metric-column-hint">Conectan regiones lejanas en secuencia</p>
+                                    <ul id="top-seqdist-list" class="residue-list"></ul>
+                                </div>
+                                <div class="top-metric-column">
+                                    <div class="metric-column-header">
+                                        <i class="fas fa-wave-square"></i>
+                                        <h5>Contactos largos</h5>
+                                    </div>
+                                    <p class="metric-column-hint">Residuos en superficie/interfaces</p>
+                                    <ul id="top-longcontacts-list" class="residue-list"></ul>
                                 </div>
                             </div>
                         </div>
@@ -821,17 +814,12 @@
         }
     </script>
 
-    <!-- Lazy load de scripts no-críticos con defer -->
-    <!-- Mol* viewer library -->
+    <!-- Scripts externos con defer para carga no bloqueante -->
     <script src="https://cdn.jsdelivr.net/npm/molstar@4.17.0/build/viewer/molstar.js" defer></script>
-    
-    <!-- py3Dmol for molecular visualization -->
     <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js" defer></script>
     
-    <!-- WebGL Graph Renderer (replaces Plotly) -->
+    <!-- Scripts personalizados con defer -->
     <script src="{{ url_for('static', filename=asset_path('js/molstar_graph_renderer.js')) }}" defer></script>
-    
-    <!-- Custom scripts con defer -->
     <script src="{{ url_for('static', filename=asset_path('js/navbar.js')) }}" defer></script>
     <script src="{{ url_for('static', filename=asset_path('js/ui-enhancements.js')) }}" defer></script>
     <script src="{{ url_for('static', filename=asset_path('js/molstar_analyzer.js')) }}" defer></script>
