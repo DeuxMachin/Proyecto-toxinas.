@@ -25,7 +25,7 @@ import sys
 import time
 import asyncio
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import json
 import argparse
 
@@ -78,7 +78,7 @@ async def run_peptide_stage(xml_path: str, db_path: str, concurrency: int = 5) -
     }
 
 
-def main(argv: list[str] | None = None):
+def main(argv: Optional[List[str]] = None):
     parser = argparse.ArgumentParser(description="Pipeline completo UniProt→DB→Artefactos")
     parser.add_argument("--query", help="Query para UniProt (si falta, se pedirá por consola)")
     parser.add_argument("--gap-min", type=int, default=3, help="Gap mínimo del motivo")

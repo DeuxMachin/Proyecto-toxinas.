@@ -176,6 +176,7 @@ def main():
     print(f"Exported {len(data)} records to {args.out}")
     print(f"Log written to {log_path}")
 
-
+'''
 if __name__ == "__main__":
     main()
+'''
