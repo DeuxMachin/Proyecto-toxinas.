@@ -2,7 +2,7 @@ import json
 import os
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, List
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -10,13 +10,20 @@ from dotenv import load_dotenv
 # ---------------------------------------------------------------------------
 # Configuración del cliente vLLM
 # ---------------------------------------------------------------------------
-load_dotenv()
-base_url = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
-client = OpenAI(base_url=base_url, api_key=os.getenv("VLLM_API_KEY"))
-print("Client initialized", client)
-MODEL_NAME = os.getenv("VLLM_MODEL")
-print("Model:", MODEL_NAME)
+# Global cache para evitar reinicialización
+_client_cache = None
+_model_name_cache = None
 
+def get_ai_client():
+    """Inicializa el cliente IA solo cuando se necesita (lazy loading)."""
+    global _client_cache, _model_name_cache
+    if _client_cache is None:
+        base_url = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+        _client_cache = OpenAI(base_url=base_url, api_key=os.getenv("VLLM_API_KEY"))
+        _model_name_cache = os.getenv("VLLM_MODEL")
+        print("Client initialized", _client_cache)
+        print("Model:", _model_name_cache)
+    return _client_cache, _model_name_cache
 
 # ---------------------------------------------------------------------------
 # FEW-SHOT EXAMPLES - Con casos de rangos y orden de potencia
@@ -334,7 +341,7 @@ IMPORTANTE: RESPONDE ÚNICAMENTE con el JSON solicitado. No incluyas explicacion
 # ---------------------------------------------------------------------------
 # Función para crear mensajes
 # ---------------------------------------------------------------------------
-def create_few_shot_messages(user_text: str) -> list[dict]:
+def create_few_shot_messages(user_text: str) -> List[dict]:
     """Crea el array de mensajes con few-shot examples."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(few_shot_examples)
@@ -354,6 +361,7 @@ Responde en formato JSON."""
 # ---------------------------------------------------------------------------
 def analyze_text_for_nav17(text: str, verbose: bool = True) -> dict:
     """Analiza un texto usando el modelo con few-shot learning."""
+    client, MODEL_NAME = get_ai_client()  # ← Obtener aquí
     messages = create_few_shot_messages(text)
     
     if verbose:
@@ -438,7 +446,7 @@ def analyze_text_for_nav17(text: str, verbose: bool = True) -> dict:
 # ---------------------------------------------------------------------------
 # EJEMPLOS DE USO
 # ---------------------------------------------------------------------------
-
+'''
 if __name__ == "__main__":
     
     # Ejemplo 1: TU CASO - Orden de potencia con rango
@@ -490,4 +498,4 @@ These data indicate that mHwTx-IV strongly binds to voltage sensor of sodium cha
     text6 = """
     Gating-modifier toxin that both inhibits the peak current of human Nav1.1/SCN1A, rat Nav1.2/SCN2A, human Nav1.6/SCN8A, and human Nav1.7/SCN9A and concurrently inhibits fast inactivation of human Nav1.1 and rat Nav1.3/SCN3A. The relative rank order potency for Nav modulation is Nav1.3 (inactivation EC50=45 nM) > Nav1.7 > Nav1.2 > Nav1.1 (inactivation) > Nav1.1 > Nav1.6 > Nav1.3 (IC50=8 uM). The DII and DIV S3-S4 loops of Nav channel voltage sensors are important for the interaction of this toxin with Nav channels but cannot account for its unique subtype selectivity. It is the variability of the S1-S2 loops between NaV channels which contributes substantially to the selectivity profile observed for this toxin, particularmente con respecto a la rápida inactivación. Esta toxina puede unirse al canal en el estado de reposo (Probable)."""
     result6 = analyze_text_for_nav17(text6)
-
+'''

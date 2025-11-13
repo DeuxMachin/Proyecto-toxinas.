@@ -3,6 +3,7 @@ import os, importlib, json
 
 import sqlite3
 from extractors.toxins_filter import search_toxins
+from typing import List
 
 # Path to AI-exported JSON that may contain ic50 extraction results per accession
 _EXPORTS_AI_PATH = os.path.join(os.getcwd(), "exports", "filtered_accessions_nav1_7_analysis.json")
@@ -67,7 +68,7 @@ def toxin_filter_api():
         hits = search_toxins(gap_min=gap_min, gap_max=gap_max, require_pair=require_pair, db_path=_DB_PATH)
 
         # Enrich hits with accession_number and Nav1.7 flags and apply exclusions
-        enriched: list[dict] = []
+        enriched: List[dict] = []
         conn = sqlite3.connect(_DB_PATH)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()

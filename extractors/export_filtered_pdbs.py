@@ -35,7 +35,7 @@ import shutil
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 # Rutas base del repo para import relativo estable
 ROOT_DIR = Path(__file__).parent.parent.resolve()
@@ -171,7 +171,7 @@ def export_filtered_pdbs(
     return len(hits), exported, skipped
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Exporta PDBs de péptidos filtrados desde la base de datos.")
     parser.add_argument("--db-path", type=Path, default=ROOT_DIR / "database/toxins.db", help="Ruta a la base de datos SQLite.")
     parser.add_argument("--output-dir", type=Path, default=ROOT_DIR / "pdbs/filtered", help="Directorio de salida para los .pdb generados.")

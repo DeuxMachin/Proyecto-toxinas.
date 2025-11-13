@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, List, Optional, Set
 from numbers import Number
 import networkx as nx
 import pandas as pd
@@ -55,7 +55,7 @@ def _to_hashable_residue_number(value: Any) -> Any:
     return str(value)
 
 
-def _residue_seq_index(value: Any) -> int | None:
+def _residue_seq_index(value: Any) -> Optional[int]:
     """Extract an integer sequence index when possible."""
     normalized = _to_hashable_residue_number(value)
     try:
@@ -79,7 +79,7 @@ def agrupar_por_segmentos_atomicos(G: Any, granularity: str = "atom") -> pd.Data
     clustering_coeff = nx.clustering(G)
 
     # Agrupar átomos por residuo (parseando ID del nodo o usando atributos)
-    residuos_atomicos: dict[str, dict] = {}
+    residuos_atomicos: Dict[str, dict] = {}
     for nodo, data in G.nodes(data=True):
         chain = data.get('chain_id')
         res_name = data.get('residue_name')
@@ -164,9 +164,9 @@ def agrupar_por_segmentos_atomicos(G: Any, granularity: str = "atom") -> pd.Data
             degree_avg = between_avg = close_avg = cluster_avg = 0
 
         # Calcular métricas de vecinos externas y distancias secuenciales
-        vecinos_map: dict[tuple, set[str]] = {}
+        vecinos_map: Dict[tuple, Set[str]] = {}
         vecinos_conexiones = 0
-        sequential_distances: list[float] = []
+        sequential_distances: List[float] = []
         long_contacts = 0
 
         for atom_node in atom_nodes:

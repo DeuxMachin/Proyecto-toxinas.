@@ -10,7 +10,7 @@ class SqliteFamilyRepository:
     def _conn(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
 
-    def _family_like_patterns(self, family_prefix: str) -> tuple[str, str]:
+    def _family_like_patterns(self, family_prefix: str) -> Tuple[str, str]:
         try:
             dom = importlib.import_module('src.domain.models')
             fam = dom.FamilyName(family_prefix)
