@@ -44,16 +44,10 @@
 </head>
 <body class="viewer-page">
     <!-- NAVBAR -->
-    {% set navbar_actions %}
-      <button class="action-btn">
-        <i class="fas fa-download"></i>
-        <span>Exportar</span>
-      </button>
-    {% endset %}
     {% include 'partials/navbar.html' %}
 
     <!-- CONTENIDO PRINCIPAL -->
-    <div class="viewer-container">
+    <div class="viewer-container" role="main" aria-label="Visualizador de proteínas">
         <!-- Header de la página -->
         <div class="page-header">
             <div class="page-header-content">
