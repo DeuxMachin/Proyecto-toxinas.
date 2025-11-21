@@ -44,6 +44,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const edgeVisibilityToggle = document.getElementById('toggle-edges');
     const graphExpandBtn = document.getElementById('graph-expand-btn');
     const graphCollapseBtn = document.getElementById('graph-collapse-btn');
+    // Modal elements for graph quick controls
+    const graphControlsModalOverlay = document.getElementById('graph-controls-modal-overlay');
+    const graphControlsModal = document.getElementById('graph-controls-modal');
+    const modalGraphHost = document.getElementById('modal-graph-host');
+    const modalToggleNodesBtn = document.getElementById('modal-toggle-nodes');
+    const modalToggleEdgesBtn = document.getElementById('modal-toggle-edges');
+    const modalMinimizeBtn = document.getElementById('modal-minimize-btn');
+    const modalResetBtn = document.getElementById('modal-reset-btn');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    // Advanced actions FAB and overlay removed
     const graphPanel = document.querySelector('.graph-panel');
     const visibilityState = {
         nodes: nodeVisibilityToggle ? nodeVisibilityToggle.checked : true,
@@ -77,6 +87,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
             syncVisibilityChipState(checkbox);
             updateRendererVisibility();
+            // Sync modal labels if present
+            try { updateModalToggleButtons(); } catch (err) {}
         });
     });
 
@@ -106,9 +118,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (graphExpandBtn) {
         graphExpandBtn.addEventListener('click', () => {
-            if (graphPanel && !graphPanel.classList.contains('graph-panel-expanded')) {
-                setGraphExpansion(true);
-            }
+            // Instead of expanding the whole viewer, only open a focused modal
+            openGraphControlsModal();
         });
     }
 
@@ -117,8 +128,190 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (graphPanel && graphPanel.classList.contains('graph-panel-expanded')) {
                 setGraphExpansion(false);
             }
+            // Ensure modal is closed when graph is collapsed
+            closeGraphControlsModal();
         });
     }
+
+    // Reparent helpers
+    let originalGraphParent = null;
+    let originalNextSibling = null;
+    // Placeholders and originals for advanced sections
+    let residueSearchCard = null;
+    let aaColorLegend = null;
+    let residueSearchPlaceholder = null;
+    let aaColorLegendPlaceholder = null;
+
+    // Modal helpers
+    function openGraphControlsModal() {
+        if (!graphControlsModalOverlay) return;
+        // Prevent opening if already open
+        if (graphControlsModalOverlay.classList.contains('open')) return;
+        // Move modal overlay to body to cover entire screen
+        if (graphControlsModalOverlay.parentElement !== document.body) {
+            document.body.appendChild(graphControlsModalOverlay);
+        }
+        graphControlsModalOverlay.classList.add('open');
+        graphControlsModalOverlay.setAttribute('aria-hidden', 'false');
+        updateModalToggleButtons();
+        if (graphControlsModal) {
+            const firstBtn = graphControlsModal.querySelector('button.modal-action-btn');
+            try { firstBtn && firstBtn.focus(); } catch (err) {}
+        }
+        // Prevent background scroll when modal open
+        try { document.body.style.overflow = 'hidden'; } catch (err) {}
+        // Disable expand button while modal is open
+        if (graphExpandBtn) {
+            graphExpandBtn.disabled = true;
+            graphExpandBtn.style.opacity = '0.5';
+        }
+        // Reparent graphPlotElement into modalGraphHost (so only the graph is focused)
+        if (modalGraphHost && graphPlotElement) {
+            try {
+                // Save original place to restore later
+                originalGraphParent = graphPlotElement.parentElement;
+                originalNextSibling = graphPlotElement.nextElementSibling;
+                modalGraphHost.classList.add('active');
+                modalGraphHost.setAttribute('aria-hidden', 'false');
+                modalGraphHost.appendChild(graphPlotElement);
+                // Force resize of graph renderer to modal size
+                setTimeout(() => {
+                    try { if (graphRenderer && typeof graphRenderer.handleResize === 'function') graphRenderer.handleResize(); } catch (e) {}
+                }, 50);
+            } catch (err) {
+                console.warn('Failed to reparent graph into modal host:', err);
+            }
+        }
+        // Update modal connections if there's a selected node
+        if (graphRenderer && graphRenderer.selectedNode !== null && graphRenderer.graphData && graphRenderer.graphData.nodes[graphRenderer.selectedNode]) {
+            const selectedNode = graphRenderer.graphData.nodes[graphRenderer.selectedNode];
+            graphRenderer.updateModalConnectionsGrid(selectedNode, graphRenderer.selectedNode);
+        }
+    }
+
+    function closeGraphControlsModal() {
+        if (!graphControlsModalOverlay) return;
+        graphControlsModalOverlay.classList.remove('open');
+        graphControlsModalOverlay.setAttribute('aria-hidden', 'true');
+        try { document.body.style.overflow = ''; } catch (err) {}
+        // Re-enable expand button
+        if (graphExpandBtn) {
+            graphExpandBtn.disabled = false;
+            graphExpandBtn.style.opacity = '';
+        }
+        // Move modal overlay back to its original parent
+        const originalModalParent = document.querySelector('.graph-panel');
+        if (originalModalParent && graphControlsModalOverlay.parentElement === document.body) {
+            originalModalParent.appendChild(graphControlsModalOverlay);
+        }
+        // Restore advanced sections if they were moved
+        restoreAdvancedSections();
+        // Restore graphPlotElement to its original parent
+        if (originalGraphParent && graphPlotElement) {
+            try {
+                if (originalNextSibling) {
+                    originalGraphParent.insertBefore(graphPlotElement, originalNextSibling);
+                } else {
+                    originalGraphParent.appendChild(graphPlotElement);
+                }
+                modalGraphHost.classList.remove('active');
+                modalGraphHost.setAttribute('aria-hidden', 'true');
+                setTimeout(() => {
+                    try { if (graphRenderer && typeof graphRenderer.handleResize === 'function') graphRenderer.handleResize(); } catch (e) {}
+                }, 50);
+            } catch (err) {
+                console.warn('Failed to restore graph to original parent:', err);
+            }
+        }
+    }
+
+    // Advanced overlay removed: no action needed at this time
+
+    function restoreAdvancedSections() {
+        // Move elements back to their placeholders
+        try {
+            if (residueSearchCard && residueSearchPlaceholder && residueSearchPlaceholder.parentElement) {
+                residueSearchPlaceholder.parentElement.insertBefore(residueSearchCard, residueSearchPlaceholder);
+            }
+            if (aaColorLegend && aaColorLegendPlaceholder && aaColorLegendPlaceholder.parentElement) {
+                aaColorLegendPlaceholder.parentElement.insertBefore(aaColorLegend, aaColorLegendPlaceholder);
+            }
+            // If there was any overlay, we rely on CSS to hide it; no extra work required.
+        } catch(e) { /* no-op */ }
+    }
+
+    function updateModalToggleButtons() {
+        if (modalToggleNodesBtn && nodeVisibilityToggle) {
+            const visible = nodeVisibilityToggle.checked;
+            modalToggleNodesBtn.textContent = visible ? 'Ocultar Nodos' : 'Ver Nodos';
+            modalToggleNodesBtn.classList.toggle('active', visible);
+        }
+        if (modalToggleEdgesBtn && edgeVisibilityToggle) {
+            const visible = edgeVisibilityToggle.checked;
+            modalToggleEdgesBtn.textContent = visible ? 'Ocultar Aristas' : 'Ver Aristas';
+            modalToggleEdgesBtn.classList.toggle('active', visible);
+        }
+    }
+
+    // Modal event listeners
+    if (modalToggleNodesBtn) {
+        modalToggleNodesBtn.addEventListener('click', () => {
+            if (!nodeVisibilityToggle) return;
+            nodeVisibilityToggle.checked = !nodeVisibilityToggle.checked;
+            nodeVisibilityToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            updateModalToggleButtons();
+        });
+    }
+
+    if (modalToggleEdgesBtn) {
+        modalToggleEdgesBtn.addEventListener('click', () => {
+            if (!edgeVisibilityToggle) return;
+            edgeVisibilityToggle.checked = !edgeVisibilityToggle.checked;
+            edgeVisibilityToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            updateModalToggleButtons();
+        });
+    }
+
+    if (modalMinimizeBtn) {
+        modalMinimizeBtn.addEventListener('click', () => {
+            // Only close the modal and restore the graph to its original container
+            closeGraphControlsModal();
+        });
+    }
+
+    if (modalResetBtn) {
+        modalResetBtn.addEventListener('click', () => {
+            // Reset view via renderer
+            if (graphRenderer && typeof graphRenderer.resetView === 'function') {
+                graphRenderer.resetView();
+            }
+        });
+    }
+
+    if (modalCloseBtn) {
+        modalCloseBtn.addEventListener('click', () => {
+            closeGraphControlsModal();
+        });
+    }
+
+    // Advanced overlay functionality removed; nothing to initialize here.
+
+    // Close when clicking on overlay background
+    if (graphControlsModalOverlay) {
+        graphControlsModalOverlay.addEventListener('click', (e) => {
+            if (e.target === graphControlsModalOverlay) {
+                closeGraphControlsModal();
+            }
+        });
+    }
+
+    // Close with Esc key
+    document.addEventListener('keydown', (e) => {
+        if (!graphControlsModalOverlay) return;
+        if (e.key === 'Escape' && graphControlsModalOverlay.classList.contains('open')) {
+            closeGraphControlsModal();
+        }
+    });
     
     let currentProteinGroup = null;
     let currentProteinId = null;
@@ -151,6 +344,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.graphRenderer = graphRenderer;
     updateRendererVisibility();
     syncExpandButtons(Boolean(graphPanel && graphPanel.classList.contains('graph-panel-expanded')));
+    // Initialize modal toggle labels if present
+    try { updateModalToggleButtons(); } catch (err) {}
     
     // Función para sincronizar el estado visual del toggle con el checkbox
     function syncGranularityToggleVisual() {

@@ -344,7 +344,7 @@ class MolstarGraphRenderer {
         const detailsDiv = document.getElementById('graph-info-details');
         
         if (emptyState) emptyState.style.display = 'none';
-        if (detailsDiv) detailsDiv.style.display = 'block';
+        if (detailsDiv) detailsDiv.style.display = 'flex';
         
         // Actualizar información básica del nodo
         const nodeNameEl = document.getElementById('node-name');
@@ -358,6 +358,12 @@ class MolstarGraphRenderer {
         
         // Actualizar conexiones con el nuevo diseño
         this.updateConnectionsGrid(node, index);
+        
+        // Actualizar conexiones en el modal si está abierto
+        const modalOverlay = document.getElementById('graph-controls-modal-overlay');
+        if (modalOverlay && modalOverlay.classList.contains('open')) {
+            this.updateModalConnectionsGrid(node, index);
+        }
     }
     
     /**
@@ -383,7 +389,16 @@ class MolstarGraphRenderer {
         if (!connectionsGrid) return;
         
         // Obtener conexiones del nodo
-        const connections = this.adj && this.adj.get(index) ? Array.from(this.adj.get(index)) : [];
+        let connections = this.adj && this.adj.get(index) ? Array.from(this.adj.get(index)) : [];
+        // Si el nodo marcado globalmente está en las conexiones, muévelo al inicio
+        const globalSel = (this.selectedNode !== null) ? this.selectedNode : -1;
+        if (globalSel >= 0) {
+            const pos = connections.indexOf(globalSel);
+            if (pos >= 0) {
+                connections.splice(pos, 1);
+                connections.unshift(globalSel);
+            }
+        }
         
         // Actualizar badge con el número de conexiones
         if (connectionsBadge) {
@@ -429,9 +444,206 @@ class MolstarGraphRenderer {
                 e.stopPropagation();
                 this.selectNodeByIndex(connIndex);
             });
+
+            // Si la conexión es el nodo seleccionado actualmente, resaltar
+            if (this.selectedNode !== null && connIndex === this.selectedNode) {
+                card.classList.add('active');
+                card.setAttribute('aria-current', 'true');
+            } else {
+                card.removeAttribute('aria-current');
+            }
+
+            // (duplicate highlight removed; handled above with aria-current)
             
             connectionsGrid.appendChild(card);
         });
+    }
+    
+    /**
+     * Actualiza el panel de conexiones en el modal
+     */
+    updateModalConnectionsGrid(node, index) {
+        const modalConnectionsGrid = document.getElementById('modal-node-connected');
+        const modalConnectionsBadge = document.getElementById('modal-connections-badge');
+        const modalCurrentNodeName = document.getElementById('modal-current-node-name');
+        const modalPrevBtn = document.getElementById('modal-connections-prev');
+        const modalNextBtn = document.getElementById('modal-connections-next');
+        const modalIndicators = document.getElementById('modal-carousel-indicators');
+        
+        if (!modalConnectionsGrid) return;
+        
+        // Mostrar el nombre del nodo actual
+        if (modalCurrentNodeName) {
+            modalCurrentNodeName.textContent = node.label || `Nodo ${index}`;
+        }
+        
+        // Obtener conexiones del nodo (guardamos original para contar)
+        const originalConnections = this.adj && this.adj.get(index) ? Array.from(this.adj.get(index)) : [];
+        let connections = originalConnections.slice();
+        // Insertar el nodo actualmente seleccionado al principio del track si hace falta
+        const globalSel = (this.selectedNode !== null) ? this.selectedNode : -1;
+        let injectedSelectedNotLinked = false;
+        if (globalSel >= 0) {
+            const pos = connections.indexOf(globalSel);
+            if (pos >= 0) {
+                connections.splice(pos, 1);
+                connections.unshift(globalSel);
+            } else {
+                connections.unshift(globalSel); // mantener visible la selección
+                injectedSelectedNotLinked = true;
+            }
+        }
+        
+        // Actualizar badge con el número de conexiones (no contamos el seleccionado insertado manualmente)
+        if (modalConnectionsBadge) {
+            modalConnectionsBadge.textContent = originalConnections.length;
+        }
+        
+        // Limpiar grid
+        modalConnectionsGrid.innerHTML = '';
+        
+        // Si no hay conexiones, mostrar estado vacío
+        if (connections.length === 0) {
+            modalConnectionsGrid.innerHTML = `
+                <div style="flex: 1; text-align: center; color: #9ca3af; padding: 20px;">
+                    <i class="fas fa-unlink" style="font-size: 24px; margin-bottom: 8px;"></i>
+                    <span>Este nodo no tiene conexiones</span>
+                </div>
+            `;
+            // Ocultar controles de navegación
+            if (modalPrevBtn) modalPrevBtn.style.display = 'none';
+            if (modalNextBtn) modalNextBtn.style.display = 'none';
+            if (modalIndicators) modalIndicators.innerHTML = '';
+            return;
+        }
+        
+        // Configuración inicial del carrusel
+        let cardsPerPage = 4; // se recalculará en base al ancho del contenedor
+        let totalPages = Math.ceil(connections.length / cardsPerPage);
+        let currentPage = 0;
+        
+        // Generar todas las cards
+        connections.forEach(connIndex => {
+            const connectedNode = this.graphData.nodes[connIndex];
+            if (!connectedNode) return;
+            
+            const card = document.createElement('div');
+            card.className = 'modal-connection-card';
+            
+            // Calcular distancia si está disponible
+            const distance = this.calculateDistance(node, connectedNode);
+            const distanceStr = distance ? `${distance.toFixed(1)}Å` : '';
+            
+            // Render icon + small name label under it
+            card.innerHTML = `
+                <div class="modal-connection-card-icon">
+                    <i class="fas fa-link"></i>
+                </div>
+                <div class="modal-connection-card-name">${connectedNode.label || `Nodo ${connIndex}`}</div>
+            `;
+            card.title = connectedNode.label || `Nodo ${connIndex}`;
+            card.setAttribute('role', 'button');
+            card.setAttribute('aria-label', connectedNode.label || `Nodo ${connIndex}`);
+            card.tabIndex = 0;
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.selectNodeByIndex(connIndex);
+                }
+            });
+            
+            // Event listener para hacer click en una conexión
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectNodeByIndex(connIndex);
+            });
+
+            // Si hemos inyectado el seleccionado en la lista pero no es originalmente una conexión, marcarlo
+            if (injectedSelectedNotLinked && connIndex === globalSel) {
+                card.dataset.selectedNotLinked = 'true';
+                card.title = (card.title || '') + ' (Seleccionado)';
+            }
+            
+            modalConnectionsGrid.appendChild(card);
+        });
+        
+        // Función para actualizar la posición del carrusel
+        const updateCarousel = () => {
+            // Medir dimensiones reales
+            const carouselViewport = modalConnectionsGrid.parentElement;
+            const containerWidth = carouselViewport ? carouselViewport.clientWidth : 820;
+            const firstCard = modalConnectionsGrid.firstElementChild;
+            const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 120;
+            const gap = 8; // debe coincidir con el CSS
+            // recalcular cuantas cards caben por página
+            cardsPerPage = Math.max(1, Math.floor(containerWidth / (cardWidth + gap)));
+            const pageWidth = cardsPerPage * (cardWidth + gap) - gap;
+            // recalcular totalPages si cambió
+            totalPages = Math.max(1, Math.ceil(connections.length / cardsPerPage));
+            // Asegurar currentPage dentro de los límites
+            currentPage = Math.min(currentPage, Math.max(0, totalPages - 1));
+            const leftPadding = Math.max(0, (containerWidth - pageWidth) / 2);
+            const translateX = leftPadding - currentPage * pageWidth;
+            modalConnectionsGrid.style.transform = `translateX(${translateX}px)`;
+            
+            // Actualizar botones
+            if (modalPrevBtn) {
+                modalPrevBtn.style.display = (totalPages > 1 && currentPage > 0) ? 'flex' : 'none';
+                modalPrevBtn.disabled = currentPage === 0;
+            }
+            if (modalNextBtn) {
+                modalNextBtn.style.display = (totalPages > 1 && currentPage < totalPages - 1) ? 'flex' : 'none';
+                modalNextBtn.disabled = currentPage === totalPages - 1;
+            }
+            
+            // Actualizar indicadores
+            if (modalIndicators) {
+                modalIndicators.innerHTML = '';
+                for (let i = 0; i < totalPages; i++) {
+                    const indicator = document.createElement('div');
+                    indicator.className = `modal-carousel-indicator ${i === currentPage ? 'active' : ''}`;
+                    indicator.addEventListener('click', () => {
+                        currentPage = i;
+                        updateCarousel();
+                    });
+                    modalIndicators.appendChild(indicator);
+                }
+            }
+        };
+        
+        // Event listeners para navegación
+        if (modalPrevBtn) {
+            modalPrevBtn.onclick = () => {
+                if (currentPage > 0) {
+                    currentPage--;
+                    updateCarousel();
+                }
+            };
+        }
+        
+        if (modalNextBtn) {
+            modalNextBtn.onclick = () => {
+                if (currentPage < totalPages - 1) {
+                    currentPage++;
+                    updateCarousel();
+                }
+            };
+        }
+        
+        // Si hay un nodo seleccionado que sea parte de las conexiones, mostrar su página
+        const selectedConnIndex = (this.selectedNode !== null) ? connections.findIndex(c => c === this.selectedNode) : -1;
+        if (selectedConnIndex >= 0) {
+            currentPage = Math.floor(selectedConnIndex / cardsPerPage);
+        }
+        // Añadir listener de resize para recalcular el carousel (solo una vez por renderer)
+        if (!this._modalCarouselResizeHandler) {
+            this._modalCarouselResizeHandler = () => {
+                try { updateCarousel(); } catch (e) {}
+            };
+            window.addEventListener('resize', this._modalCarouselResizeHandler);
+        }
+        // Inicializar carrusel
+        updateCarousel();
     }
     
     /**
