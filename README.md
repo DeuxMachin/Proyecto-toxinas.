@@ -6,7 +6,7 @@
 [![Flask](https://img.shields.io/badge/Backend-Flask-green.svg)](https://flask.palletsprojects.com/)
 [![Graphein](https://img.shields.io/badge/Graphs-Graphein-red.svg)](https://github.com/a-r-j/graphein)
 [![Mol*](https://img.shields.io/badge/Viewer-Mol*-%23ff8800.svg)](https://molstar.org/)
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Juaker1/Proyecto-toxinas)
 Análisis estructural de toxinas que modulan Nav1.7 mediante grafos moleculares, métricas de centralidad avanzadas y visualización 3D interactiva.
 
 </div>

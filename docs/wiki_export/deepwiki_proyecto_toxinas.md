@@ -37,27 +37,34 @@ Separación clara entre:
 
 ### Core Technology Stack
 
-Backend:
+Backend (ampliado):
 
-- Flask 2.0+: servidor HTTP y blueprints
-- Configuración: `src/config.py` / `.env` (dataclass `AppConfig`)
-- SQLite (`toxins.db`): metadatos, secuencias, IC50, grafos en BLOB
-- Graphein 1.7.0+: construcción de grafos desde PDB
-- NetworkX 2.6+: métricas de centralidad (betweenness, closeness, degree)
-- MDAnalysis / BioPython: cálculo de dipolo desde PSF/PDB
-- BioPython 1.79+: manipulación PDB y extracción de secuencia
-- openpyxl: generación de Excel para reportes por residuo
-- Werkzeug ProxyFix: manejo de `X-Forwarded-*` detrás de Nginx
-- Flask-Compress: compresión gzip
+- Flask 3.x / Werkzeug 3.x: servidor HTTP, middleware y routing por blueprints
+- Jinja2: templates HTML con parciales reutilizables (navbar)
+- Configuración: `src/config.py` / `.env` (dataclass `AppConfig` y flags: `USE_MINIFIED_ASSETS`, `LEGACY_ALIASES_ENABLED`, `DEBUG`)
+- SQLite (`database/toxins.db`): metadatos, secuencias, IC50/Kd AI, y grafos cacheados en BLOB
+- Repositorios SQLite: `SqliteStructureRepository`, `SqliteMetadataRepository`, `SqliteFamilyRepository`, `SqliteToxinRepository`
+- Adaptadores: `GrapheinGraphAdapter`, `DipoleAdapter`, `ExcelExportAdapter`, `PDBPreprocessorAdapter`, `TempFileService`
+- Graphein 1.7.x + NetworkX 2.6+: construcción de grafos y métricas (grado, intermediación, cercanía, eigenvector, clustering, densidad)
+- MDAnalysis 2.7.0 / BioPython 1.79+: cálculo de momento dipolar (PSF/PDB), fallback por aproximación
+- openpyxl 3.1.5: generación de informes Excel (por toxina, familia, segmentos atómicos)
+- Bioservices + requests-cache: ingesta de UniProt con caching HTTP
+- Parasail: alineamiento de secuencias para detección de motivos
+- Loguru, Pydantic: logging estructurado y validación de datos en casos de uso
+- ProxyFix (Werkzeug): despliegue tras Nginx Proxy Manager, confianza en `X-Forwarded-*`
+- Flask-Compress: compresión gzip, `after_request`: cache/security headers
 
-Frontend:
+Frontend (ampliado):
 
-- Mol* Plugin: visualizador 3D principal
-- py3Dmol: visualización de vector de dipolo
-- Canvas WebGL custom: `MolstarGraphRenderer` para grafos moleculares interactivos
-- Plotly 5.0+: gráficas de IC50 y rose plots de ángulos
-- Design System CSS: variables y temas
-- SheetJS (XLSX.js): exportación Excel en cliente
+- Mol* Plugin: visualizador 3D principal (estructura)
+- py3Dmol: visualización de dipolos por tarjeta/peptido
+- WebGL Canvas custom: `MolstarGraphRenderer` para grafos densos sub-segundo
+- Plotly 5/6: gráficas interactivas (IC50 scatter, rose plots angulares)
+- Design System CSS: `design-system.css`, `components.css`, `navbar.css`, CSS variables y tokens
+- SheetJS (XLSX.js): exportación Excel en cliente (filtro toxinas)
+- Arquitectura MPA: `viewer.html`, `toxin_filter.html`, `dipole_families.html` con assets específicos y parciales `partials/navbar.html`
+- Carga diferida: `IntersectionObserver`, lazy import de Plotly/3Dmol/SheetJS, Web Worker para datasets
+- Accesibilidad: atributos ARIA, navegación por teclado, contraste WCAG AA
 
 ### Application Composition Root
 
@@ -163,3 +170,80 @@ Notas:
 - Este Markdown resume y normaliza el contenido del DeepWiki en español, preservando estructura y enlaces originales.
 - Las tablas del stack se describen en texto por compatibilidad `.md`.
 - Si deseas exportar cada página a `.md` individual, puedo generarlas dentro de `docs/wiki_export/` con nombres basados en el slug del DeepWiki.
+
+---
+
+## Diagramas (enlaces originales)
+
+- Arquitectura general: <https://deepwiki.com/Juaker1/Proyecto-toxinas/3-architecture-overview>
+	- Diagrama de capas, flujo de dependencias, composición en `create_app_v2()`
+- Backend Architecture: <https://deepwiki.com/Juaker1/Proyecto-toxinas/3.1-backend-architecture>
+	- Organización de blueprints `/v2`, patrón de inyección manual, flujos de petición/exportación
+- Frontend Architecture: <https://deepwiki.com/Juaker1/Proyecto-toxinas/3.2-frontend-architecture>
+	- Arquitectura de páginas (MPA), mapa de módulos JS, renderer WebGL, sistema de modales
+- Database Schema: <https://deepwiki.com/Juaker1/Proyecto-toxinas/6.1-database-schema>
+	- Diagrama ER, tablas núcleo, estrategia BLOB vs filesystem
+- Installation & Dependencies: <https://deepwiki.com/Juaker1/Proyecto-toxinas/2.1-installation-and-dependencies>
+	- Requisitos del sistema, categorías de dependencias, flujo de configuración, salud y troubleshooting
+
+Nota: Los diagramas están embebidos en DeepWiki; aquí se enlazan para mantener fidelidad y evitar pérdida de detalle. Si prefieres una exportación de imágenes local, puedo descargarlas y referenciarlas en `docs/wiki_export/img/`.
+
+---
+
+## Pipeline de extracción y análisis (resumen)
+
+Esta sección sintetiza el flujo de trabajo de la plataforma desde la extracción y normalización de datos hasta el análisis topológico, basada en tu contenido y la estructura del sistema.
+
+### Extracción y normalización de datos biomoleculares
+
+- Consulta UniProt (familia Knottin, venenos, revisado): `keyword:"Knottin" AND (cc_tissue_specificity:venom OR cc_scl_term:nematocyst) AND reviewed:true`.
+- Recuperación inicial: 1348 proteínas.
+- Limpieza/normalización:
+	- Extracción de coordenadas del péptido maduro (excluye pro-péptidos y señales).
+	- Validación de estructura 3D (PDB o AlphaFold).
+	- Recorte digital automatizado para alinear la estructura al segmento maduro.
+- Resultado: 1308 secuencias válidas (≈97%).
+- Distribución:
+	- 40 estructuras recortadas automáticamente.
+	- 1268 estructuras preexistentes validadas.
+
+Tabla resumen (valores):
+
+| Etapa del Proceso                  | Cantidad |
+|-----------------------------------|----------|
+| Proteínas recuperadas (UniProt)   | 1348     |
+| Péptidos maduros validados        | 1308     |
+| Estructuras recortadas automáticamente | 40  |
+| Estructuras preexistentes validadas    | 1268 |
+
+### Filtrado basado en motivo farmacofórico
+
+- Criterio Sharma et al. (2025), NaSpTx1: patrón mínimo S–X(3,6)–W.
+- Selección:
+	- 50 péptidos cumplen el patrón (3.8% del dataset depurado).
+	- Exclusión de toxinas del conjunto de referencia → 44 candidatos nuevos.
+- Núcleo de análisis: 44 péptidos con alta probabilidad de bioactividad.
+
+### Modelado estructural y generación de grafos moleculares
+
+- Para los 44 candidatos:
+	- PDB normalizados y PSF generados/validados (cobertura 100%).
+	- Representación por grafos a dos granularidades: atómica y residuos (Cα).
+- Métricas promedio en grafos de residuos: ~300 nodos y ~600 aristas por estructura.
+
+### Análisis topológico y propiedades estructurales
+
+- Patrones de centralidad asociados a actividad inhibidora; preservación de hubs crítica para afinidad.
+- Ejemplos:
+	- μ-TRTX-Hh2a: LEU22 y TRP30 mantienen alta conectividad (>1000 contactos externos) en WT y mutantes activos.
+	- ω-TRTX-Gr2a: mutación W29A reduce ≈40% contactos externos en posición 29, desarticulando la interacción local.
+- Sugerencia basada en literatura (Amitai 2004; del Sol 2006; Brysbaert 2021): usar betweenness y grado para predecir estabilidad funcional del farmacóforo; hubs topológicos correlacionan con integridad estructural.
+
+### Relación con la arquitectura del sistema
+
+- Ingesta y limpieza: `extractors/uniprot.py`, `extractors/peptide_extractor.py`, caching y normalización.
+- Recorte/normalización PDB: `extractors/cortar_pdb.py`, `PDBPreprocessorAdapter`.
+- PSF: `resources/psf_gen.tcl`, `psfs/` y pipelines VMD/psfgen (opcional en despliegue). 
+- Grafos y métricas: `GrapheinGraphAdapter`, `domain/services/graph_metrics.py`, `SegmentationService`.
+- Exportación: `ExcelExportAdapter` y casos de uso de export.
+- Persistencia y BLOBs: `database/create_db.py`, almacenamiento dual (filesystem + SQLite BLOB).
